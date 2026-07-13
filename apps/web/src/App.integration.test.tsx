@@ -1,0 +1,90 @@
+﻿import {
+  render,
+  screen,
+} from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import {
+  afterAll,
+  beforeAll,
+  expect,
+  test,
+  vi,
+} from "vitest";
+
+import { buildApp } from "../../api/src/app.js";
+import { App } from "./App";
+
+const api = buildApp();
+
+beforeAll(async () => {
+  await api.ready();
+
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ) => {
+      const requestUrl =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.pathname
+            : new URL(input.url).pathname;
+
+      const requestHeaders = Object.fromEntries(
+        new Headers(init?.headers).entries(),
+      );
+
+      const injectedResponse = await api.inject({
+        method: "POST",
+        url: requestUrl,
+        headers: requestHeaders,
+        payload:
+          typeof init?.body === "string"
+            ? init.body
+            : undefined,
+      });
+
+      return new Response(
+        injectedResponse.body,
+        {
+          status: injectedResponse.statusCode,
+          headers: {
+            "Content-Type":
+              injectedResponse.headers["content-type"] ??
+              "application/json",
+          },
+        },
+      );
+    }),
+  );
+});
+
+afterAll(async () => {
+  vi.unstubAllGlobals();
+  await api.close();
+});
+
+test("React chat completes a request through the real Fastify application", async () => {
+  const user = userEvent.setup();
+
+  render(<App />);
+
+  await user.type(
+    screen.getByLabelText("Message"),
+    "Integrated Gexor request",
+  );
+
+  await user.click(
+    screen.getByRole("button", {
+      name: "Send",
+    }),
+  );
+
+  expect(
+    await screen.findByText(
+      "Mock reply: Integrated Gexor request",
+    ),
+  ).toBeInTheDocument();
+});
