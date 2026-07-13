@@ -8,6 +8,11 @@ import type {
 export function buildApp() {
   const app = Fastify({
     logger: false,
+    ajv: {
+      customOptions: {
+        removeAdditional: false,
+      },
+    },
   });
 
   app.get("/health", async () => {
