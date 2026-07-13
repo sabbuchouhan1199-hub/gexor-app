@@ -1,18 +1,19 @@
-﻿import { buildApp } from "./app.js";
+import { buildApp } from "./app.js";
+import { loadApiConfig } from "./config.js";
 
-const host = process.env.HOST ?? "127.0.0.1";
-const port = Number(process.env.PORT ?? "3001");
+async function startServer(): Promise<void> {
+  const config = loadApiConfig();
+  const app = buildApp();
 
-const app = buildApp();
-
-try {
-  await app.listen({
-    host,
-    port,
-  });
-
-  console.log(`Gexor API listening at http://${host}:${port}`);
-} catch (error) {
-  app.log.error(error);
-  process.exitCode = 1;
+  try {
+    await app.listen({
+      host: config.host,
+      port: config.port,
+    });
+  } catch (error) {
+    app.log.error(error);
+    process.exitCode = 1;
+  }
 }
+
+void startServer();

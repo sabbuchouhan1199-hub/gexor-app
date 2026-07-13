@@ -1,11 +1,44 @@
-﻿import Fastify from "fastify";
+import Fastify, {
+  type FastifyError,
+  type FastifyInstance,
+} from "fastify";
 
-import type {
-  ChatRequest,
-  ChatResponse,
-} from "@gexor/contracts";
+type ChatRequest = {
+  message: string;
+};
 
-export function buildApp() {
+type ChatResponse = {
+  reply: string;
+};
+
+type ErrorCode =
+  | "VALIDATION_ERROR"
+  | "ROUTE_NOT_FOUND"
+  | "INTERNAL_SERVER_ERROR";
+
+type ErrorResponse = {
+  error: {
+    code: ErrorCode;
+    message: string;
+    status: number;
+  };
+};
+
+function createErrorResponse(
+  code: ErrorCode,
+  message: string,
+  status: number,
+): ErrorResponse {
+  return {
+    error: {
+      code,
+      message,
+      status,
+    },
+  };
+}
+
+export function buildApp(): FastifyInstance {
   const app = Fastify({
     logger: false,
     ajv: {
@@ -23,7 +56,7 @@ export function buildApp() {
 
   app.post<{
     Body: ChatRequest;
-    Reply: ChatResponse;
+    Reply: ChatResponse | ErrorResponse;
   }>(
     "/mock/chat",
     {
@@ -41,24 +74,56 @@ export function buildApp() {
             },
           },
         },
-        response: {
-          200: {
-            type: "object",
-            additionalProperties: false,
-            required: ["reply"],
-            properties: {
-              reply: {
-                type: "string",
-              },
-            },
-          },
-        },
       },
     },
     async (request) => {
       return {
-        reply: `Mock reply: ${request.body.message}`,
+        reply: `Mock reply: ${request.body.message.trim()}`,
       };
+    },
+  );
+
+  app.setNotFoundHandler(async (_request, reply) => {
+    return reply
+      .status(404)
+      .send(
+        createErrorResponse(
+          "ROUTE_NOT_FOUND",
+          "The requested route was not found.",
+          404,
+        ),
+      );
+  });
+
+  app.setErrorHandler(
+    async (
+      error: FastifyError,
+      _request,
+      reply,
+    ) => {
+      if (error.validation) {
+        return reply
+          .status(400)
+          .send(
+            createErrorResponse(
+              "VALIDATION_ERROR",
+              "Request validation failed.",
+              400,
+            ),
+          );
+      }
+
+      app.log.error(error);
+
+      return reply
+        .status(500)
+        .send(
+          createErrorResponse(
+            "INTERNAL_SERVER_ERROR",
+            "An unexpected server error occurred.",
+            500,
+          ),
+        );
     },
   );
 

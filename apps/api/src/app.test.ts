@@ -1,4 +1,4 @@
-﻿import assert from "node:assert/strict";
+import assert from "node:assert/strict";
 import {
   after,
   test,
@@ -39,7 +39,22 @@ test("POST /mock/chat returns a deterministic reply", async () => {
   });
 });
 
-test("POST /mock/chat rejects an empty message", async () => {
+test("POST /mock/chat trims accepted input", async () => {
+  const response = await app.inject({
+    method: "POST",
+    url: "/mock/chat",
+    payload: {
+      message: "  Hello Gexor  ",
+    },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json(), {
+    reply: "Mock reply: Hello Gexor",
+  });
+});
+
+test("empty input returns a normalized validation error", async () => {
   const response = await app.inject({
     method: "POST",
     url: "/mock/chat",
@@ -49,9 +64,16 @@ test("POST /mock/chat rejects an empty message", async () => {
   });
 
   assert.equal(response.statusCode, 400);
+  assert.deepEqual(response.json(), {
+    error: {
+      code: "VALIDATION_ERROR",
+      message: "Request validation failed.",
+      status: 400,
+    },
+  });
 });
 
-test("POST /mock/chat rejects a whitespace-only message", async () => {
+test("whitespace input returns a normalized validation error", async () => {
   const response = await app.inject({
     method: "POST",
     url: "/mock/chat",
@@ -61,22 +83,36 @@ test("POST /mock/chat rejects a whitespace-only message", async () => {
   });
 
   assert.equal(response.statusCode, 400);
+  assert.deepEqual(response.json(), {
+    error: {
+      code: "VALIDATION_ERROR",
+      message: "Request validation failed.",
+      status: 400,
+    },
+  });
 });
 
-test("POST /mock/chat rejects unexpected request fields", async () => {
+test("unknown fields return a normalized validation error", async () => {
   const response = await app.inject({
     method: "POST",
     url: "/mock/chat",
     payload: {
       message: "Hello Gexor",
-      unauthorizedField: "must not be accepted",
+      unauthorizedField: "not allowed",
     },
   });
 
   assert.equal(response.statusCode, 400);
+  assert.deepEqual(response.json(), {
+    error: {
+      code: "VALIDATION_ERROR",
+      message: "Request validation failed.",
+      status: 400,
+    },
+  });
 });
 
-test("POST /mock/chat rejects messages longer than 4000 characters", async () => {
+test("oversized input returns a normalized validation error", async () => {
   const response = await app.inject({
     method: "POST",
     url: "/mock/chat",
@@ -86,4 +122,27 @@ test("POST /mock/chat rejects messages longer than 4000 characters", async () =>
   });
 
   assert.equal(response.statusCode, 400);
+  assert.deepEqual(response.json(), {
+    error: {
+      code: "VALIDATION_ERROR",
+      message: "Request validation failed.",
+      status: 400,
+    },
+  });
+});
+
+test("unknown routes return a normalized not-found error", async () => {
+  const response = await app.inject({
+    method: "GET",
+    url: "/route-that-does-not-exist",
+  });
+
+  assert.equal(response.statusCode, 404);
+  assert.deepEqual(response.json(), {
+    error: {
+      code: "ROUTE_NOT_FOUND",
+      message: "The requested route was not found.",
+      status: 404,
+    },
+  });
 });
