@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">Gexor G</title>
+  <rect width="512" height="512" rx="96" fill="#111827" />
+  <circle cx="256" cy="256" r="140" fill="none" stroke="#ffffff" stroke-width="56" />
+  <rect x="256" y="80" width="168" height="166" fill="#111827" />
+  <rect x="250" y="228" width="146" height="56" rx="8" fill="#ffffff" />
+  <rect x="340" y="228" width="56" height="132" rx="8" fill="#ffffff" />
+</svg>
