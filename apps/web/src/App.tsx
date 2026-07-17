@@ -35,7 +35,7 @@ export function App() {
     setError("");
 
     try {
-      const response = await fetch("/mock/chat", {
+      const response = await fetch("/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -79,14 +79,14 @@ export function App() {
 
         <div className="status-row">
           <span className="status-dot" aria-hidden="true" />
-          Deterministic mock API
+          Configured AI provider
         </div>
 
         <div className="conversation" aria-live="polite">
           <article className="message message-system">
             <p className="message-label">Gexor</p>
             <p>
-              Enter a message to verify the browser-to-API connection.
+              Enter a message to send it through the configured AI provider.
             </p>
           </article>
 
@@ -138,7 +138,7 @@ export function App() {
         </form>
 
         <footer>
-          Temporary MVP verification interface. No AI provider is connected.
+          Provider-backed MVP chat interface.
         </footer>
       </section>
     </main>

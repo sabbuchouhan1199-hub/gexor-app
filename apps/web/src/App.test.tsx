@@ -4,6 +4,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
+  afterEach,
   describe,
   expect,
   test,
@@ -13,6 +14,10 @@ import {
 import { App } from "./App";
 
 describe("Gexor browser chat", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   test("renders the initial accessible chat interface", () => {
     render(<App />);
 
@@ -34,9 +39,33 @@ describe("Gexor browser chat", () => {
 
     expect(
       screen.getByText(
-        "Enter a message to verify the browser-to-API connection.",
+        "Enter a message to send it through the configured AI provider.",
       ),
     ).toBeInTheDocument();
+
+    expect(
+      screen.getByText(
+        "Configured AI provider",
+      ),
+    ).toBeInTheDocument();
+
+    expect(
+      screen.getByText(
+        "Provider-backed MVP chat interface.",
+      ),
+    ).toBeInTheDocument();
+
+    expect(
+      screen.queryByText(
+        "Deterministic mock API",
+      ),
+    ).not.toBeInTheDocument();
+
+    expect(
+      screen.queryByText(
+        "Temporary MVP verification interface. No AI provider is connected.",
+      ),
+    ).not.toBeInTheDocument();
   });
 
   test("does not submit whitespace-only input", async () => {
@@ -105,7 +134,7 @@ describe("Gexor browser chat", () => {
     resolveRequest?.(
       new Response(
         JSON.stringify({
-          reply: "Mock reply: Hello Gexor",
+          reply: "Provider reply",
         }),
         {
           status: 200,
@@ -117,7 +146,7 @@ describe("Gexor browser chat", () => {
     );
 
     expect(
-      await screen.findByText("Mock reply: Hello Gexor"),
+      await screen.findByText("Provider reply"),
     ).toBeInTheDocument();
   });
 
@@ -125,7 +154,7 @@ describe("Gexor browser chat", () => {
     const fetchMock = vi.fn(async () => {
       return new Response(
         JSON.stringify({
-          reply: "Mock reply: Hello Gexor",
+          reply: "Provider-generated reply",
         }),
         {
           status: 200,
@@ -156,7 +185,7 @@ describe("Gexor browser chat", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "/mock/chat",
+      "/chat",
       {
         method: "POST",
         headers: {
@@ -166,6 +195,11 @@ describe("Gexor browser chat", () => {
           message: "Hello Gexor",
         }),
       },
+    );
+
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      "/mock/chat",
+      expect.anything(),
     );
 
     expect(
@@ -186,7 +220,9 @@ describe("Gexor browser chat", () => {
     ).toBeInTheDocument();
 
     expect(
-      await screen.findByText("Mock reply: Hello Gexor"),
+      await screen.findByText(
+        "Provider-generated reply",
+      ),
     ).toBeInTheDocument();
   });
 
@@ -196,7 +232,12 @@ describe("Gexor browser chat", () => {
       vi.fn(async () => {
         return new Response(
           JSON.stringify({
-            error: "Service unavailable",
+            error: {
+              code: "PROVIDER_UNAVAILABLE",
+              message:
+                "The provider is unavailable.",
+              status: 503,
+            },
           }),
           {
             status: 503,
