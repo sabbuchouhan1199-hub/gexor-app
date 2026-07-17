@@ -8,6 +8,10 @@ import type {
   ChatResponse,
 } from "@gexor/contracts";
 import type { TextProvider } from "./providers/provider.js";
+import {
+  ProviderError,
+  type ProviderErrorCode,
+} from "./providers/errors.js";
 
 export type AppDependencies = {
   textProvider: TextProvider;
@@ -22,7 +26,8 @@ declare module "fastify" {
 type ErrorCode =
   | "VALIDATION_ERROR"
   | "ROUTE_NOT_FOUND"
-  | "INTERNAL_SERVER_ERROR";
+  | "INTERNAL_SERVER_ERROR"
+  | ProviderErrorCode;
 
 type ErrorResponse = {
   error: {
@@ -55,6 +60,20 @@ const chatResponseSchema = {
   },
 } as const;
 
+const chatRequestSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["message"],
+  properties: {
+    message: {
+      type: "string",
+      minLength: 1,
+      maxLength: 4000,
+      pattern: "\\S",
+    },
+  },
+} as const;
+
 const errorResponseSchema = {
   type: "object",
   additionalProperties: false,
@@ -71,6 +90,12 @@ const errorResponseSchema = {
             "VALIDATION_ERROR",
             "ROUTE_NOT_FOUND",
             "INTERNAL_SERVER_ERROR",
+            "PROVIDER_AUTHENTICATION_FAILED",
+            "PROVIDER_MODEL_NOT_FOUND",
+            "PROVIDER_RATE_LIMITED",
+            "PROVIDER_TIMEOUT",
+            "PROVIDER_UNAVAILABLE",
+            "PROVIDER_INVALID_RESPONSE",
           ],
         },
         message: {
@@ -139,19 +164,7 @@ export function buildApp(
     "/mock/chat",
     {
       schema: {
-        body: {
-          type: "object",
-          additionalProperties: false,
-          required: ["message"],
-          properties: {
-            message: {
-              type: "string",
-              minLength: 1,
-              maxLength: 4000,
-              pattern: "\\S",
-            },
-          },
-        },
+        body: chatRequestSchema,
         response: {
           200: chatResponseSchema,
           400: errorResponseSchema,
@@ -162,6 +175,36 @@ export function buildApp(
     async (request) => {
       return {
         reply: `Mock reply: ${request.body.message.trim()}`,
+      };
+    },
+  );
+
+  app.post<{
+    Body: ChatRequest;
+    Reply: ChatResponse | ErrorResponse;
+  }>(
+    "/chat",
+    {
+      schema: {
+        body: chatRequestSchema,
+        response: {
+          200: chatResponseSchema,
+          400: errorResponseSchema,
+          500: errorResponseSchema,
+          502: errorResponseSchema,
+          503: errorResponseSchema,
+          504: errorResponseSchema,
+        },
+      },
+    },
+    async (request) => {
+      const result =
+        await app.textProvider.generateText({
+          input: request.body.message.trim(),
+        });
+
+      return {
+        reply: result.text,
       };
     },
   );
@@ -192,6 +235,18 @@ export function buildApp(
               "VALIDATION_ERROR",
               "Request validation failed.",
               400,
+            ),
+          );
+      }
+
+      if (error instanceof ProviderError) {
+        return reply
+          .status(error.status)
+          .send(
+            createErrorResponse(
+              error.code,
+              error.message,
+              error.status,
             ),
           );
       }
