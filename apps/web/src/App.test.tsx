@@ -1,4 +1,6 @@
 import {
+  act,
+  fireEvent,
   render,
   screen,
 } from "@testing-library/react";
@@ -15,6 +17,7 @@ import { App } from "./App";
 
 describe("Gexor browser chat", () => {
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
@@ -188,6 +191,8 @@ describe("Gexor browser chat", () => {
       "/chat",
       {
         method: "POST",
+        cache: "no-store",
+        signal: expect.any(AbortSignal),
         headers: {
           "Content-Type": "application/json",
         },
@@ -267,7 +272,7 @@ describe("Gexor browser chat", () => {
     expect(
       await screen.findByRole("alert"),
     ).toHaveTextContent(
-      "API request failed with HTTP 503.",
+      "The provider is unavailable.",
     );
 
     expect(
@@ -279,5 +284,82 @@ describe("Gexor browser chat", () => {
         name: "Send",
       }),
     ).toBeEnabled();
+  });
+
+  test("clears the sending state after a network error", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      throw new TypeError("Failed to fetch");
+    }));
+    const user = userEvent.setup();
+    render(<App />);
+    await user.type(screen.getByLabelText("Message"), "Retry me");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Failed to fetch");
+    expect(screen.getByLabelText("Message")).toHaveValue("Retry me");
+    expect(screen.getByRole("button", { name: "Send" })).toBeEnabled();
+  });
+
+  test("aborts a request at the client timeout and restores the input", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn((_input: RequestInfo | URL, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => {
+          reject(new DOMException("Aborted", "AbortError"));
+        });
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    render(<App />);
+    fireEvent.change(screen.getByLabelText("Message"), {
+      target: { value: "Slow request" },
+    });
+    fireEvent.submit(screen.getByRole("button", { name: "Send" }).closest("form")!);
+    expect(screen.getByRole("button", { name: "Sending…" })).toBeDisabled();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(125_000);
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "The request timed out. Please try again.",
+    );
+    expect(screen.getByLabelText("Message")).toHaveValue("Slow request");
+    expect(screen.getByRole("button", { name: "Send" })).toBeEnabled();
+    expect((fetchMock.mock.calls[0]?.[1] as RequestInit).signal?.aborted).toBe(true);
+  });
+
+  test("rejects a malformed successful response safely", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(
+      JSON.stringify({ reply: "   " }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    )));
+    const user = userEvent.setup();
+    render(<App />);
+    await user.type(screen.getByLabelText("Message"), "Validate me");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The API returned an invalid reply. Please try again.",
+    );
+    expect(screen.getByLabelText("Message")).toHaveValue("Validate me");
+    expect(screen.getByRole("button", { name: "Send" })).toBeEnabled();
+  });
+
+  test("blocks duplicate submission while a request is pending", async () => {
+    let resolveRequest: ((response: Response) => void) | undefined;
+    const fetchMock = vi.fn(() => new Promise<Response>((resolve) => {
+      resolveRequest = resolve;
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<App />);
+    fireEvent.change(screen.getByLabelText("Message"), {
+      target: { value: "Only once" },
+    });
+    const form = screen.getByRole("button", { name: "Send" }).closest("form")!;
+    fireEvent.submit(form);
+    fireEvent.submit(form);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    resolveRequest?.(new Response(
+      JSON.stringify({ reply: "Once" }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    ));
+    expect(await screen.findByText("Once")).toBeInTheDocument();
   });
 });

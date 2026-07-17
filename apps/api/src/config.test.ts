@@ -16,7 +16,7 @@ test("configuration uses safe local defaults", () => {
       ollamaModel: "qwen3:0.6b",
       ollamaTimeoutMs: 120000,
       geminiApiKey: undefined,
-      geminiModel: "gemini-2.5-flash-lite",
+      geminiModel: "gemini-3.1-flash-lite",
       geminiTimeoutMs: 120000,
     },
   );

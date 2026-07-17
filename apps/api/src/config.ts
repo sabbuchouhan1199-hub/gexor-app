@@ -126,7 +126,7 @@ function readPositiveWholeNumber(
 
 function readGeminiModel(value: string | undefined): string {
   if (value === undefined) {
-    return "gemini-2.5-flash-lite";
+    return "gemini-3.1-flash-lite";
   }
 
   const model = value.trim();

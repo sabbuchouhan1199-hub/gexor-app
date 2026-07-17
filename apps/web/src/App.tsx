@@ -1,5 +1,6 @@
 ﻿import {
   type FormEvent,
+  useRef,
   useState,
 } from "react";
 
@@ -8,19 +9,42 @@ import type {
   ChatResponse,
 } from "@gexor/contracts";
 
+export const CHAT_REQUEST_TIMEOUT_MS = 125_000;
+
+type ApiErrorBody = { error?: { message?: unknown } };
+
+function isChatResponse(value: unknown): value is ChatResponse {
+  if (typeof value !== "object" || value === null) return false;
+  const reply = (value as { reply?: unknown }).reply;
+  return typeof reply === "string" && reply.trim().length > 0;
+}
+
+async function getApiErrorMessage(response: Response): Promise<string> {
+  try {
+    const body = (await response.json()) as ApiErrorBody;
+    const apiMessage = body.error?.message;
+    if (typeof apiMessage === "string" && apiMessage.trim()) return apiMessage;
+  } catch {
+    // Fall back to the HTTP status when the response body is not safe JSON.
+  }
+  return `API request failed with HTTP ${response.status}.`;
+}
+
 export function App() {
   const [message, setMessage] = useState("");
   const [submittedMessage, setSubmittedMessage] = useState("");
   const [reply, setReply] = useState("");
   const [error, setError] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const isSendingRef = useRef(false);
+  const requestIdRef = useRef(0);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const normalizedMessage = message.trim();
 
-    if (!normalizedMessage || isSending) {
+    if (!normalizedMessage || isSendingRef.current) {
       return;
     }
 
@@ -28,6 +52,11 @@ export function App() {
       message: normalizedMessage,
     };
 
+    const controller = new AbortController();
+    const requestId = ++requestIdRef.current;
+    const timeout = setTimeout(() => controller.abort(), CHAT_REQUEST_TIMEOUT_MS);
+
+    isSendingRef.current = true;
     setIsSending(true);
     setSubmittedMessage(normalizedMessage);
     setMessage("");
@@ -37,6 +66,8 @@ export function App() {
     try {
       const response = await fetch("/chat", {
         method: "POST",
+        cache: "no-store",
+        signal: controller.signal,
         headers: {
           "Content-Type": "application/json",
         },
@@ -44,22 +75,33 @@ export function App() {
       });
 
       if (!response.ok) {
-        throw new Error(`API request failed with HTTP ${response.status}.`);
+        throw new Error(await getApiErrorMessage(response));
       }
 
-      const responseBody = (await response.json()) as ChatResponse;
+      const responseBody: unknown = await response.json();
+      if (!isChatResponse(responseBody)) {
+        throw new Error("The API returned an invalid reply. Please try again.");
+      }
 
-      setReply(responseBody.reply);
+      if (requestId === requestIdRef.current && !controller.signal.aborted) {
+        setReply(responseBody.reply);
+      }
     } catch (requestError) {
-      const message =
-        requestError instanceof Error
-          ? requestError.message
-          : "An unexpected request error occurred.";
-
-      setMessage(normalizedMessage);
-      setError(message);
+      if (requestId === requestIdRef.current) {
+        const errorMessage = controller.signal.aborted
+          ? "The request timed out. Please try again."
+          : requestError instanceof Error
+            ? requestError.message
+            : "An unexpected request error occurred.";
+        setMessage(normalizedMessage);
+        setError(errorMessage);
+      }
     } finally {
-      setIsSending(false);
+      clearTimeout(timeout);
+      if (requestId === requestIdRef.current) {
+        isSendingRef.current = false;
+        setIsSending(false);
+      }
     }
   }
 
