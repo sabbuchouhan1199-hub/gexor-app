@@ -169,6 +169,23 @@ describe("Gexor browser chat", () => {
     );
 
     expect(
+      screen.getByLabelText("Message"),
+    ).toHaveValue("");
+
+    expect(
+      await screen.findByText("Hello Gexor"),
+    ).toBeInTheDocument();
+
+    await user.type(
+      screen.getByLabelText("Message"),
+      "A different draft",
+    );
+
+    expect(
+      screen.getByText("Hello Gexor"),
+    ).toBeInTheDocument();
+
+    expect(
       await screen.findByText("Mock reply: Hello Gexor"),
     ).toBeInTheDocument();
   });
@@ -211,6 +228,10 @@ describe("Gexor browser chat", () => {
     ).toHaveTextContent(
       "API request failed with HTTP 503.",
     );
+
+    expect(
+      screen.getByLabelText("Message"),
+    ).toHaveValue("Hello Gexor");
 
     expect(
       screen.getByRole("button", {

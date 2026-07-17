@@ -83,6 +83,14 @@ test("React chat completes a request through the real Fastify application", asyn
   );
 
   expect(
+    screen.getByLabelText("Message"),
+  ).toHaveValue("");
+
+  expect(
+    await screen.findByText("Integrated Gexor request"),
+  ).toBeInTheDocument();
+
+  expect(
     await screen.findByText(
       "Mock reply: Integrated Gexor request",
     ),

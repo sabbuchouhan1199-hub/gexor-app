@@ -3,13 +3,10 @@ import Fastify, {
   type FastifyInstance,
 } from "fastify";
 
-type ChatRequest = {
-  message: string;
-};
-
-type ChatResponse = {
-  reply: string;
-};
+import type {
+  ChatRequest,
+  ChatResponse,
+} from "@gexor/contracts";
 
 type ErrorCode =
   | "VALIDATION_ERROR"
@@ -23,6 +20,58 @@ type ErrorResponse = {
     status: number;
   };
 };
+
+const healthResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["status"],
+  properties: {
+    status: {
+      type: "string",
+      const: "ok",
+    },
+  },
+} as const;
+
+const chatResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["reply"],
+  properties: {
+    reply: {
+      type: "string",
+    },
+  },
+} as const;
+
+const errorResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["error"],
+  properties: {
+    error: {
+      type: "object",
+      additionalProperties: false,
+      required: ["code", "message", "status"],
+      properties: {
+        code: {
+          type: "string",
+          enum: [
+            "VALIDATION_ERROR",
+            "ROUTE_NOT_FOUND",
+            "INTERNAL_SERVER_ERROR",
+          ],
+        },
+        message: {
+          type: "string",
+        },
+        status: {
+          type: "integer",
+        },
+      },
+    },
+  },
+} as const;
 
 function createErrorResponse(
   code: ErrorCode,
@@ -48,11 +97,22 @@ export function buildApp(): FastifyInstance {
     },
   });
 
-  app.get("/health", async () => {
-    return {
-      status: "ok",
-    };
-  });
+  app.get(
+    "/health",
+    {
+      schema: {
+        response: {
+          200: healthResponseSchema,
+          500: errorResponseSchema,
+        },
+      },
+    },
+    async () => {
+      return {
+        status: "ok",
+      };
+    },
+  );
 
   app.post<{
     Body: ChatRequest;
@@ -73,6 +133,11 @@ export function buildApp(): FastifyInstance {
               pattern: "\\S",
             },
           },
+        },
+        response: {
+          200: chatResponseSchema,
+          400: errorResponseSchema,
+          500: errorResponseSchema,
         },
       },
     },

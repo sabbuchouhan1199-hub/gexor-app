@@ -10,6 +10,7 @@ import type {
 
 export function App() {
   const [message, setMessage] = useState("");
+  const [submittedMessage, setSubmittedMessage] = useState("");
   const [reply, setReply] = useState("");
   const [error, setError] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -28,6 +29,8 @@ export function App() {
     };
 
     setIsSending(true);
+    setSubmittedMessage(normalizedMessage);
+    setMessage("");
     setReply("");
     setError("");
 
@@ -53,6 +56,7 @@ export function App() {
           ? requestError.message
           : "An unexpected request error occurred.";
 
+      setMessage(normalizedMessage);
       setError(message);
     } finally {
       setIsSending(false);
@@ -90,7 +94,7 @@ export function App() {
             <>
               <article className="message message-user">
                 <p className="message-label">You</p>
-                <p>{message.trim()}</p>
+                <p>{submittedMessage}</p>
               </article>
 
               <article className="message message-system">
