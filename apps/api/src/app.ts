@@ -7,6 +7,17 @@ import type {
   ChatRequest,
   ChatResponse,
 } from "@gexor/contracts";
+import type { TextProvider } from "./providers/provider.js";
+
+export type AppDependencies = {
+  textProvider: TextProvider;
+};
+
+declare module "fastify" {
+  interface FastifyInstance {
+    textProvider: TextProvider;
+  }
+}
 
 type ErrorCode =
   | "VALIDATION_ERROR"
@@ -87,7 +98,9 @@ function createErrorResponse(
   };
 }
 
-export function buildApp(): FastifyInstance {
+export function buildApp(
+  dependencies: AppDependencies,
+): FastifyInstance {
   const app = Fastify({
     logger: false,
     ajv: {
@@ -96,6 +109,11 @@ export function buildApp(): FastifyInstance {
       },
     },
   });
+
+  app.decorate(
+    "textProvider",
+    dependencies.textProvider,
+  );
 
   app.get(
     "/health",

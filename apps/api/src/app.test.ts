@@ -5,11 +5,35 @@ import {
 } from "node:test";
 
 import { buildApp } from "./app.js";
+import type { TextProvider } from "./providers/provider.js";
 
-const app = buildApp();
+let providerCallCount = 0;
+
+const textProvider: TextProvider = {
+  async generateText(request) {
+    providerCallCount += 1;
+
+    return {
+      provider: "fake",
+      model: "fake-model",
+      text: request.input,
+    };
+  },
+};
+
+const app = buildApp({
+  textProvider,
+});
 
 after(async () => {
   await app.close();
+});
+
+test("application retains the injected text provider", () => {
+  assert.equal(
+    app.textProvider,
+    textProvider,
+  );
 });
 
 test("GET /health returns the healthy service state", async () => {
@@ -25,6 +49,8 @@ test("GET /health returns the healthy service state", async () => {
 });
 
 test("POST /mock/chat returns a deterministic reply", async () => {
+  const callsBeforeRequest = providerCallCount;
+
   const response = await app.inject({
     method: "POST",
     url: "/mock/chat",
@@ -37,6 +63,10 @@ test("POST /mock/chat returns a deterministic reply", async () => {
   assert.deepEqual(response.json(), {
     reply: "Mock reply: Hello Gexor",
   });
+  assert.equal(
+    providerCallCount,
+    callsBeforeRequest,
+  );
 });
 
 test("POST /mock/chat trims accepted input", async () => {

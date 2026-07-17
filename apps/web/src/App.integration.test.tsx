@@ -12,9 +12,22 @@ import {
 } from "vitest";
 
 import { buildApp } from "../../api/src/app.js";
+import type { TextProvider } from "../../api/src/providers/provider.js";
 import { App } from "./App";
 
-const api = buildApp();
+const textProvider: TextProvider = {
+  async generateText(request) {
+    return {
+      provider: "fake",
+      model: "fake-model",
+      text: request.input,
+    };
+  },
+};
+
+const api = buildApp({
+  textProvider,
+});
 
 beforeAll(async () => {
   await api.ready();
