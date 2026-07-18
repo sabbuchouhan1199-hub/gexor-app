@@ -280,3 +280,60 @@ test("Gemini adapter normalizes local request timeouts", async () => {
     },
   );
 });
+
+async function assertHttp400(
+  body: BodyInit | null,
+  expectedCode: "PROVIDER_AUTHENTICATION_FAILED" | "PROVIDER_REQUEST_REJECTED",
+): Promise<void> {
+  await assert.rejects(
+    providerWithResponse(
+      new Response(body, {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      }),
+    ).generateText({ input: "Hello" }),
+    (error: unknown) => {
+      assert.ok(error instanceof ProviderError);
+      assert.equal(error.code, expectedCode);
+      assert.equal(error.status, 502);
+      assert.equal(error.retryable, false);
+      assert.equal(error.message.includes(API_KEY), false);
+      assert.equal(error.message.includes("private provider message"), false);
+      return true;
+    },
+  );
+}
+
+test("Gemini HTTP 400 API_KEY_INVALID is an authentication failure", async () => {
+  await assertHttp400(
+    JSON.stringify({
+      error: {
+        status: "INVALID_ARGUMENT",
+        message: `private provider message ${API_KEY}`,
+        details: [{ reason: "API_KEY_INVALID" }],
+      },
+    }),
+    "PROVIDER_AUTHENTICATION_FAILED",
+  );
+});
+
+test("Gemini generic structured HTTP 400 is request rejected", async () => {
+  await assertHttp400(
+    JSON.stringify({
+      error: {
+        status: "INVALID_ARGUMENT",
+        message: `private provider message ${API_KEY}`,
+        details: [{ reason: "INVALID_REQUEST" }],
+      },
+    }),
+    "PROVIDER_REQUEST_REJECTED",
+  );
+});
+
+test("Gemini malformed HTTP 400 JSON is request rejected", async () => {
+  await assertHttp400("{", "PROVIDER_REQUEST_REJECTED");
+});
+
+test("Gemini absent HTTP 400 body is request rejected", async () => {
+  await assertHttp400(null, "PROVIDER_REQUEST_REJECTED");
+});

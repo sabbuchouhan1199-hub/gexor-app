@@ -11,8 +11,10 @@ import type {
   MessageSubmissionResponse,
   RuntimeExecutionResponse,
 } from "@gexor/contracts";
+import { problemDefinitions } from "./problem-details.js";
 import type { TextProvider } from "./providers/provider.js";
 import { ProviderError } from "./providers/errors.js";
+import { RuntimeExecutor } from "./runtime-executor.js";
 import { InMemoryRuntimeExecutionStore } from "./runtime-execution-store.js";
 
 export type AppDependencies = {
@@ -24,6 +26,7 @@ declare module "fastify" {
   interface FastifyInstance {
     textProvider: TextProvider;
     executionStore: InMemoryRuntimeExecutionStore;
+    runtimeExecutor: RuntimeExecutor;
   }
 }
 
@@ -47,7 +50,7 @@ const messageSubmissionSchema = {
     content: {
       type: "array",
       minItems: 1,
-      maxItems: 20,
+      maxItems: 1,
       items: {
         type: "object",
         additionalProperties: false,
@@ -69,74 +72,6 @@ const routeParamsSchema = (property: string) => ({
     [property]: { type: "string", minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9_-]+$" },
   },
 }) as const;
-
-const problemDefinitions: Record<ApiProblemCode, {
-  type: string;
-  title: string;
-  detail: string;
-  retryable: boolean;
-}> = {
-  VALIDATION_ERROR: {
-    type: "https://docs.gexor/errors/validation-error",
-    title: "Validation error",
-    detail: "Request validation failed.",
-    retryable: false,
-  },
-  ROUTE_NOT_FOUND: {
-    type: "https://docs.gexor/errors/route-not-found",
-    title: "Route not found",
-    detail: "The requested route was not found.",
-    retryable: false,
-  },
-  EXECUTION_NOT_FOUND: {
-    type: "https://docs.gexor/errors/execution-not-found",
-    title: "Execution not found",
-    detail: "The requested execution was not found.",
-    retryable: false,
-  },
-  INTERNAL_SERVER_ERROR: {
-    type: "https://docs.gexor/errors/internal-server-error",
-    title: "Internal server error",
-    detail: "An unexpected server error occurred.",
-    retryable: false,
-  },
-  PROVIDER_AUTHENTICATION_FAILED: {
-    type: "https://docs.gexor/errors/provider-authentication-failed",
-    title: "Provider authentication failed",
-    detail: "The provider request could not be authenticated.",
-    retryable: false,
-  },
-  PROVIDER_MODEL_NOT_FOUND: {
-    type: "https://docs.gexor/errors/provider-model-not-found",
-    title: "Provider model not found",
-    detail: "The configured provider model is unavailable.",
-    retryable: false,
-  },
-  PROVIDER_RATE_LIMITED: {
-    type: "https://docs.gexor/errors/provider-rate-limited",
-    title: "Provider rate limited",
-    detail: "The provider temporarily rejected the request.",
-    retryable: true,
-  },
-  PROVIDER_TIMEOUT: {
-    type: "https://docs.gexor/errors/provider-timeout",
-    title: "Provider timeout",
-    detail: "The provider request timed out.",
-    retryable: true,
-  },
-  PROVIDER_UNAVAILABLE: {
-    type: "https://docs.gexor/errors/provider-unavailable",
-    title: "Provider unavailable",
-    detail: "The provider is unavailable.",
-    retryable: true,
-  },
-  PROVIDER_INVALID_RESPONSE: {
-    type: "https://docs.gexor/errors/provider-invalid-response",
-    title: "Invalid provider response",
-    detail: "The provider returned an invalid response.",
-    retryable: true,
-  },
-};
 
 function createProblem(
   code: ApiProblemCode,
@@ -173,15 +108,19 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     },
   });
 
+  const executionStore = dependencies.executionStore ?? new InMemoryRuntimeExecutionStore();
   app.decorate("textProvider", dependencies.textProvider);
-  app.decorate("executionStore", dependencies.executionStore ?? new InMemoryRuntimeExecutionStore());
+  app.decorate("executionStore", executionStore);
+  app.decorate("runtimeExecutor", new RuntimeExecutor(executionStore, dependencies.textProvider));
 
   app.addHook("onSend", async (request, reply, payload) => {
     reply.header("x-request-id", request.id);
     return payload;
   });
 
-  app.get("/health", async () => ({ status: "ok" }));
+  const healthHandler = async () => ({ status: "ok" as const });
+  app.get("/health", healthHandler);
+  app.get("/api/v1/health", healthHandler);
 
   app.post<{ Body: ChatRequest; Reply: ChatResponse | ApiProblem }>(
     "/mock/chat",
@@ -193,8 +132,15 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     "/chat",
     { schema: { body: chatRequestSchema } },
     async (request) => {
-      const result = await app.textProvider.generateText({ input: request.body.message.trim() });
-      return { reply: result.text };
+      const accepted = app.runtimeExecutor.accept({
+        conversationId: "conv_compatibility",
+        requestId: request.id,
+      });
+      const completed = await app.runtimeExecutor.execute(
+        accepted.executionId,
+        request.body.message.trim(),
+      );
+      return { reply: completed.response!.text };
     },
   );
 
@@ -211,14 +157,23 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       },
     },
     async (request, reply) => {
-      const execution = app.executionStore.create(request.params.conversationId);
-      return reply.status(202).send({
-        messageId: execution.messageId,
-        executionId: execution.id,
-        state: execution.state,
+      const accepted = app.runtimeExecutor.accept({
+        conversationId: request.params.conversationId,
         requestId: request.id,
-        createdAt: execution.createdAt,
-        links: { execution: execution.links.self },
+      });
+      const input = request.body.content[0].text.trim();
+
+      setImmediate(() => {
+        void app.runtimeExecutor.execute(accepted.executionId, input).catch(() => undefined);
+      });
+
+      return reply.status(202).send({
+        messageId: accepted.messageId,
+        executionId: accepted.executionId,
+        state: accepted.state,
+        requestId: accepted.requestId,
+        createdAt: accepted.createdAt,
+        links: { execution: accepted.links.self },
       });
     },
   );
