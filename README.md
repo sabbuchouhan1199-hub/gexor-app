@@ -16,7 +16,8 @@ a development-installable PWA shell. It does not yet implement the complete cano
 ## Implemented vertical slice
 
 - npm workspaces for the API, web client, and shared contracts;
-- Fastify health, deterministic mock-chat, and provider-backed chat routes;
+- Fastify compatibility and versioned health, deterministic mock-chat, and
+  provider-backed chat routes;
 - strict request validation, canonical public API problems, and safe request
   correlation;
 - provider-independent TextProvider interface with Ollama and Gemini adapters;
@@ -28,21 +29,20 @@ a development-installable PWA shell. It does not yet implement the complete cano
 - Android-installable manifest and icons in standalone display mode;
 - shared canonical problem, message-submission, and runtime-execution contracts;
 - safe request-ID acceptance/generation and response correlation;
-- in-memory runtime execution aggregate with guarded baseline transitions;
+- in-memory runtime execution aggregate with guarded narrow transitions, timestamps,
+  correlation, safe outcomes, and asynchronous progress;
 - canonical POST /api/v1/conversations/{conversationId}/messages and GET
-  /api/v1/executions/{executionId} skeleton endpoints;
+  /api/v1/executions/{executionId} endpoints;
 - workspace typecheck, test, build, and root verification commands.
 
 ## Current architecture
 
 The browser posts a minimal shared ChatRequest to Vite's development proxy. Fastify
-validates it and directly invokes the process-selected TextProvider. The adapter
-makes a non-streaming provider request and Fastify returns a minimal ChatResponse.
-The canonical submission endpoint creates an in-memory execution aggregate in the
-`created` state, and the execution endpoint reads it back. The temporary `/chat`
-route still invokes the selected provider directly. There is no durable pipeline,
-database, queue, worker, provider dispatch from the execution skeleton, or streaming
-relay yet.
+validates it and sends it through the same in-memory runtime executor used by the
+canonical API. The compatibility route waits for a non-streaming result. Canonical
+message submission returns an `accepted` execution and schedules preparation and
+provider dispatch; execution reads expose provider-neutral progress and terminal
+outcomes. There is no durable pipeline, database, queue, worker, or streaming relay.
 
 ## Repository structure
 
@@ -110,7 +110,8 @@ dependency.
 
 ## Temporary routes
 
-- GET /health reports the current Fastify process health.
+- GET /health reports the current Fastify process health; GET /api/v1/health is
+  the canonical equivalent.
 - POST /chat is a temporary, unversioned, synchronous development route that calls
   the configured provider and returns 200 with a reply.
 - POST /mock/chat is a deterministic verification route and does not call a
@@ -118,9 +119,10 @@ dependency.
 
 These routes remain outside the canonical resource lifecycle. All API responses now
 carry a safe request ID, and failures use the shared provider-neutral problem
-contract. The separate versioned skeleton endpoints provide transient message and
-execution identities with 202 acceptance, but no durable idempotency, SSE stream,
-cancellation, retry, regeneration, or provider execution.
+contract. The versioned endpoints provide transient message and execution identities
+with 202
+acceptance and asynchronous in-process provider execution, but no durable
+idempotency, SSE stream, cancellation endpoint, retry, or regeneration.
 
 ## Known limitations
 
@@ -180,7 +182,7 @@ requirement or production acceptance criteria.
 ## Current next architectural milestone
 
 Canonical shared API problems, request correlation, and the in-memory runtime
-execution skeleton are now implemented. The remaining dependency order is:
+execution foundation is now implemented. The remaining dependency order is:
 
 1. Authentication and personal workspace boundary
 2. Persistent domain repositories and transactional message acceptance
