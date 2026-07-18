@@ -44,6 +44,14 @@ message submission returns an `accepted` execution and schedules preparation and
 provider dispatch; execution reads expose provider-neutral progress and terminal
 outcomes. There is no durable pipeline, database, queue, worker, or streaming relay.
 
+## Authentication domain foundation
+
+Shared transport-safe authentication contracts and safe authentication problem codes now exist. The API domain includes conservative email normalization, a 12–128 Unicode-code-point password policy, and password hashing with Node built-in scrypt, unique random per-password salts, and timing-safe verification.
+
+Development-only in-memory identity and session repositories are implemented. Sessions use opaque random tokens: the raw token is returned once at creation and only its SHA-256 hash is retained internally. Identity and session state disappears when the process restarts.
+
+This is not an externally usable or production-ready authentication system. There are no authentication HTTP endpoints, request-authentication middleware, Authorization header handling, personal workspace provisioning, membership or authorization enforcement, or browser login/register UI. There is also no database, Redis, JWT, cookie authentication, OAuth, email verification, password recovery, MFA/passkeys, production rate limiting, or durable session revocation. Existing runtime and chat behavior is unchanged.
+
 ## Repository structure
 
 ~~~text
@@ -126,8 +134,9 @@ idempotency, SSE stream, cancellation endpoint, retry, or regeneration.
 
 ## Known limitations
 
-- no authentication, sessions, personal workspace, membership, authorization, or
-  workspace isolation;
+- no authentication HTTP endpoints, request-authentication middleware, Authorization
+  header handling, personal workspace, membership, authorization, or workspace
+  isolation; the identity and session foundation is process-local only;
 - no database, migrations, projects, persistent conversations or messages, or
   durable runtime state; the versioned resources are process-local and lost on
   restart;
@@ -184,7 +193,7 @@ requirement or production acceptance criteria.
 Canonical shared API problems, request correlation, and the in-memory runtime
 execution foundation is now implemented. The remaining dependency order is:
 
-1. Authentication and personal workspace boundary
+1. Authentication service/API endpoints and personal workspace provisioning
 2. Persistent domain repositories and transactional message acceptance
 3. Workspace-scoped provider connections and protected credential references
 4. SSE streaming, cancellation, and reconnect
