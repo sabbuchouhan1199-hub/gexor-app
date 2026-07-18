@@ -13,6 +13,48 @@ export type ProblemDefinition = {
 };
 
 export const problemDefinitions: Record<ApiProblemCode, ProblemDefinition> = {
+  AUTHENTICATION_REQUIRED: {
+    type: "https://docs.gexor/errors/authentication-required",
+    title: "Authentication required",
+    detail: "Authentication is required to access this resource.",
+    retryable: false,
+  },
+  INVALID_CREDENTIALS: {
+    type: "https://docs.gexor/errors/invalid-credentials",
+    title: "Invalid credentials",
+    detail: "The email or password is incorrect.",
+    retryable: false,
+  },
+  SESSION_EXPIRED: {
+    type: "https://docs.gexor/errors/session-expired",
+    title: "Session expired",
+    detail: "The session has expired. Sign in again.",
+    retryable: false,
+  },
+  SESSION_REVOKED: {
+    type: "https://docs.gexor/errors/session-revoked",
+    title: "Session revoked",
+    detail: "The session is no longer active. Sign in again.",
+    retryable: false,
+  },
+  EMAIL_ALREADY_EXISTS: {
+    type: "https://docs.gexor/errors/email-already-exists",
+    title: "Registration unavailable",
+    detail: "Registration could not be completed with the supplied email address.",
+    retryable: false,
+  },
+  PASSWORD_POLICY_VIOLATION: {
+    type: "https://docs.gexor/errors/password-policy-violation",
+    title: "Password policy violation",
+    detail: "The password does not meet the required security policy.",
+    retryable: false,
+  },
+  USER_DISABLED: {
+    type: "https://docs.gexor/errors/user-disabled",
+    title: "Account unavailable",
+    detail: "The account is not permitted to sign in.",
+    retryable: false,
+  },
   VALIDATION_ERROR: {
     type: "https://docs.gexor/errors/validation-error",
     title: "Validation error",

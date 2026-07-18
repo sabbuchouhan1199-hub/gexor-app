@@ -6,7 +6,63 @@ export type ChatResponse = {
   reply: string;
 };
 
+export type UserStatus =
+  | "active"
+  | "disabled";
+
+export type AuthenticatedUser = {
+  userId: string;
+  email: string;
+  displayName: string;
+  status: UserStatus;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SessionStatus =
+  | "active"
+  | "expired"
+  | "revoked";
+
+export type AuthSessionSummary = {
+  sessionId: string;
+  userId: string;
+  status: SessionStatus;
+  createdAt: string;
+  expiresAt: string;
+  lastSeenAt: string;
+  revokedAt?: string;
+};
+
+export type RegisterRequest = {
+  displayName: string;
+  email: string;
+  password: string;
+};
+
+export type LoginRequest = {
+  email: string;
+  password: string;
+};
+
+export type AuthenticationResponse = {
+  user: AuthenticatedUser;
+  sessionToken: string;
+  session: AuthSessionSummary;
+};
+
+export type RegisterResponse = AuthenticationResponse;
+
+export type LoginResponse = AuthenticationResponse;
+
 export type ApiProblemCode =
+  | "AUTHENTICATION_REQUIRED"
+  | "INVALID_CREDENTIALS"
+  | "SESSION_EXPIRED"
+  | "SESSION_REVOKED"
+  | "EMAIL_ALREADY_EXISTS"
+  | "PASSWORD_POLICY_VIOLATION"
+  | "USER_DISABLED"
   | "VALIDATION_ERROR"
   | "ROUTE_NOT_FOUND"
   | "EXECUTION_NOT_FOUND"
