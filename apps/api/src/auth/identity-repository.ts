@@ -27,6 +27,7 @@ export interface IdentityRepository {
   findCredentialsByNormalizedEmail(
     normalizedEmail: string,
   ): Promise<InternalCredentialRecord | undefined>;
+  delete(userId: string): Promise<void>;
   setStatus(
     userId: string,
     status: UserStatus,
@@ -97,6 +98,13 @@ export class InMemoryIdentityRepository implements IdentityRepository {
     if (!userId) return undefined;
     const record = this.#recordsById.get(userId);
     return record ? { ...record } : undefined;
+  }
+
+  async delete(userId: string): Promise<void> {
+    const record = this.#recordsById.get(userId);
+    if (!record) return;
+    this.#recordsById.delete(userId);
+    this.#idByNormalizedEmail.delete(record.normalizedEmail);
   }
 
   async setStatus(

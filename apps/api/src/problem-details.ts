@@ -55,6 +55,18 @@ export const problemDefinitions: Record<ApiProblemCode, ProblemDefinition> = {
     detail: "The account is not permitted to sign in.",
     retryable: false,
   },
+  WORKSPACE_CONTEXT_REQUIRED: {
+    type: "https://docs.gexor/errors/workspace-context-required",
+    title: "Workspace context required",
+    detail: "An authorized workspace context is required.",
+    retryable: false,
+  },
+  WORKSPACE_ACCESS_DENIED: {
+    type: "https://docs.gexor/errors/workspace-access-denied",
+    title: "Workspace access denied",
+    detail: "The requested resource is not available in the authorized workspace.",
+    retryable: false,
+  },
   VALIDATION_ERROR: {
     type: "https://docs.gexor/errors/validation-error",
     title: "Validation error",

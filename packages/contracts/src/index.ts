@@ -34,6 +34,27 @@ export type AuthSessionSummary = {
   revokedAt?: string;
 };
 
+export type WorkspaceStatus = "active" | "suspended";
+
+export type PersonalWorkspace = {
+  workspaceId: string;
+  ownerUserId: string;
+  name: string;
+  status: WorkspaceStatus;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type WorkspaceMembership = {
+  membershipId: string;
+  workspaceId: string;
+  userId: string;
+  role: "owner";
+  status: "active" | "revoked";
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type RegisterRequest = {
   displayName: string;
   email: string;
@@ -49,11 +70,15 @@ export type AuthenticationResponse = {
   user: AuthenticatedUser;
   sessionToken: string;
   session: AuthSessionSummary;
+  workspace: PersonalWorkspace;
+  membership: WorkspaceMembership;
 };
 
 export type RegisterResponse = AuthenticationResponse;
 
 export type LoginResponse = AuthenticationResponse;
+
+export type CurrentUserResponse = Omit<AuthenticationResponse, "sessionToken">;
 
 export type ApiProblemCode =
   | "AUTHENTICATION_REQUIRED"
@@ -63,6 +88,8 @@ export type ApiProblemCode =
   | "EMAIL_ALREADY_EXISTS"
   | "PASSWORD_POLICY_VIOLATION"
   | "USER_DISABLED"
+  | "WORKSPACE_CONTEXT_REQUIRED"
+  | "WORKSPACE_ACCESS_DENIED"
   | "VALIDATION_ERROR"
   | "ROUTE_NOT_FOUND"
   | "EXECUTION_NOT_FOUND"
@@ -109,6 +136,8 @@ export type RuntimeExecutionSnapshot = {
   messageId: string;
   conversationId: string;
   requestId: string;
+  workspaceId?: string;
+  requestedBy?: string;
   state: RuntimeExecutionState;
   createdAt: string;
   updatedAt: string;

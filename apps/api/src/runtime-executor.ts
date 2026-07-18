@@ -14,6 +14,8 @@ export class RuntimeExecutor {
   accept(options: {
     conversationId: string;
     requestId: string;
+    workspaceId?: string;
+    requestedBy?: string;
   }): RuntimeExecutionResponse {
     return this.store.create(options);
   }

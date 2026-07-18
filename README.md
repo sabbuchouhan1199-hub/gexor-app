@@ -44,13 +44,13 @@ message submission returns an `accepted` execution and schedules preparation and
 provider dispatch; execution reads expose provider-neutral progress and terminal
 outcomes. There is no durable pipeline, database, queue, worker, or streaming relay.
 
-## Authentication domain foundation
+## Usable authentication and personal workspace
 
-Shared transport-safe authentication contracts and safe authentication problem codes now exist. The API domain includes conservative email normalization, a 12–128 Unicode-code-point password policy, and password hashing with Node built-in scrypt, unique random per-password salts, and timing-safe verification.
+The versioned API now exposes register, login, logout, and current-user endpoints. Registration validates and normalizes identity input, creates an active account, provisions one personal workspace with an active owner membership, and returns an opaque bearer session. Failed in-process workspace initialization rolls back the new identity. Login failures remain enumeration-resistant, logout is idempotent, and expired or revoked sessions cannot authorize requests.
 
-Development-only in-memory identity and session repositories are implemented. Sessions use opaque random tokens: the raw token is returned once at creation and only its SHA-256 hash is retained internally. Identity and session state disappears when the process restarts.
+Canonical message submission and execution reads require a valid bearer session plus an explicit server-authorized `X-Workspace-Id`. Membership is revalidated on every protected request, and cross-workspace execution access fails closed. The temporary `/chat` and `/mock/chat` routes remain unauthenticated development compatibility behavior outside the canonical product surface.
 
-This is not an externally usable or production-ready authentication system. There are no authentication HTTP endpoints, request-authentication middleware, Authorization header handling, personal workspace provisioning, membership or authorization enforcement, or browser login/register UI. There is also no database, Redis, JWT, cookie authentication, OAuth, email verification, password recovery, MFA/passkeys, production rate limiting, or durable session revocation. Existing runtime and chat behavior is unchanged.
+Identity, session, workspace, membership, message, and execution state is still process-local and disappears on restart. There is no database, durable revocation, production rate limiting, email verification, recovery, MFA/passkeys, browser authentication UI, cookie authentication, or production-readiness claim. Conversation ownership is not durable until the persistence stage.
 
 ## Repository structure
 
@@ -134,9 +134,9 @@ idempotency, SSE stream, cancellation endpoint, retry, or regeneration.
 
 ## Known limitations
 
-- no authentication HTTP endpoints, request-authentication middleware, Authorization
-  header handling, personal workspace, membership, authorization, or workspace
-  isolation; the identity and session foundation is process-local only;
+- authentication and personal-workspace APIs are process-local; there is no durable
+  session revocation, browser authentication UI, email verification, recovery, MFA,
+  production throttling, or production authentication assurance;
 - no database, migrations, projects, persistent conversations or messages, or
   durable runtime state; the versioned resources are process-local and lost on
   restart;
@@ -193,9 +193,8 @@ requirement or production acceptance criteria.
 Canonical shared API problems, request correlation, and the in-memory runtime
 execution foundation is now implemented. The remaining dependency order is:
 
-1. Authentication service/API endpoints and personal workspace provisioning
-2. Persistent domain repositories and transactional message acceptance
-3. Workspace-scoped provider connections and protected credential references
+1. Persistent domain repositories and transactional message acceptance
+2. Workspace-scoped provider connections and protected credential references
 4. SSE streaming, cancellation, and reconnect
 5. Context, prompt, and token-budget pipeline
 6. Usage, cost, quota, and routing transparency

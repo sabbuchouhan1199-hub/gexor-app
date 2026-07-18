@@ -50,6 +50,8 @@ export class InMemoryRuntimeExecutionStore {
   create(options: {
     conversationId: string;
     requestId: string;
+    workspaceId?: string;
+    requestedBy?: string;
   }): RuntimeExecutionResponse {
     const executionId = `exec_${this.#createId()}`;
     const messageId = `msg_${this.#createId()}`;
@@ -59,6 +61,8 @@ export class InMemoryRuntimeExecutionStore {
       messageId,
       conversationId: options.conversationId,
       requestId: options.requestId,
+      ...(options.workspaceId ? { workspaceId: options.workspaceId } : {}),
+      ...(options.requestedBy ? { requestedBy: options.requestedBy } : {}),
       state: "accepted",
       createdAt: timestamp,
       updatedAt: timestamp,

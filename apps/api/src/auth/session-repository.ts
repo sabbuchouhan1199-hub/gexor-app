@@ -31,12 +31,18 @@ export type SessionLookupResult =
   | { outcome: "expired" }
   | { outcome: "revoked" };
 
+export type SessionRevocationResult =
+  | { outcome: "revoked" }
+  | { outcome: "unknown" }
+  | { outcome: "expired" };
+
 export interface SessionRepository {
   create(userId: string): Promise<CreatedSession>;
   findValidByToken(sessionToken: string): Promise<SessionLookupResult>;
   inspectById(sessionId: string): Promise<AuthSessionSummary | undefined>;
   touch(sessionToken: string): Promise<SessionLookupResult>;
   revoke(sessionId: string): Promise<AuthSessionSummary | undefined>;
+  revokeByToken(sessionToken: string): Promise<SessionRevocationResult>;
   revokeAllForUser(userId: string): Promise<number>;
   deleteExpired(): Promise<number>;
 }
@@ -116,6 +122,15 @@ export class InMemorySessionRepository implements SessionRepository {
     const now = this.#now();
     if (!record.revokedAt) record.revokedAt = now.toISOString();
     return toSessionSummary(record, now);
+  }
+
+  async revokeByToken(sessionToken: string): Promise<SessionRevocationResult> {
+    const now = this.#now();
+    const result = this.#lookupRecord(sessionToken, now);
+    if (result.outcome === "unknown" || result.outcome === "expired") return result;
+    if (result.outcome === "revoked") return { outcome: "revoked" };
+    result.record.revokedAt = now.toISOString();
+    return { outcome: "revoked" };
   }
 
   async revokeAllForUser(userId: string): Promise<number> {

@@ -7,7 +7,8 @@ export type AuthDomainErrorCode =
   | "USER_DISABLED"
   | "MALFORMED_PASSWORD_HASH"
   | "PASSWORD_HASHING_FAILED"
-  | "SESSION_TOKEN_GENERATION_FAILED";
+  | "SESSION_TOKEN_GENERATION_FAILED"
+  | "WORKSPACE_INITIALIZATION_FAILED";
 
 const messages: Record<AuthDomainErrorCode, string> = {
   INVALID_EMAIL: "The email address is invalid.",
@@ -19,6 +20,7 @@ const messages: Record<AuthDomainErrorCode, string> = {
   MALFORMED_PASSWORD_HASH: "The stored password credential is invalid.",
   PASSWORD_HASHING_FAILED: "The password credential could not be processed.",
   SESSION_TOKEN_GENERATION_FAILED: "The session credential could not be created.",
+  WORKSPACE_INITIALIZATION_FAILED: "The personal workspace could not be initialized.",
 };
 
 export class AuthDomainError extends Error {

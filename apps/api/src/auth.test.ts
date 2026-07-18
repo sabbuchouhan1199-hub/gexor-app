@@ -253,6 +253,23 @@ test("shared authentication transport contracts compile with safe public shapes"
       expiresAt: "2026-07-19T00:00:00.000Z",
       lastSeenAt: "2026-07-18T00:00:00.000Z",
     },
+    workspace: {
+      workspaceId: "workspace_test",
+      ownerUserId: "user_test",
+      name: "Example User Workspace",
+      status: "active",
+      createdAt: "2026-07-18T00:00:00.000Z",
+      updatedAt: "2026-07-18T00:00:00.000Z",
+    },
+    membership: {
+      membershipId: "membership_test",
+      workspaceId: "workspace_test",
+      userId: "user_test",
+      role: "owner",
+      status: "active",
+      createdAt: "2026-07-18T00:00:00.000Z",
+      updatedAt: "2026-07-18T00:00:00.000Z",
+    },
   };
   const registerResponse: RegisterResponse = response;
   const loginResponse: LoginResponse = response;

@@ -40,13 +40,34 @@ function assertProblem(
   return body;
 }
 
+let registrationSequence = 0;
+async function authorizedHeaders(targetApp: ReturnType<typeof buildApp>) {
+  registrationSequence += 1;
+  const response = await targetApp.inject({
+    method: "POST",
+    url: "/api/v1/auth/register",
+    payload: {
+      displayName: "Runtime Tester",
+      email: `runtime-@example.com`,
+      password: "synthetic-runtime-input",
+    },
+  });
+  assert.equal(response.statusCode, 201);
+  const body = response.json() as { sessionToken: string; workspace: { workspaceId: string } };
+  return {
+    authorization: "Bearer " + body.sessionToken,
+    "x-workspace-id": body.workspace.workspaceId,
+  };
+}
+
 async function waitForState(
   targetApp: ReturnType<typeof buildApp>,
   executionUrl: string,
   state: RuntimeExecutionResponse["state"],
+  headers: Record<string, string>,
 ): Promise<RuntimeExecutionResponse> {
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    const response = await targetApp.inject({ method: "GET", url: executionUrl });
+    const response = await targetApp.inject({ method: "GET", url: executionUrl, headers });
     const snapshot = response.json() as RuntimeExecutionResponse;
     if (snapshot.state === state) return snapshot;
     await new Promise<void>((resolve) => setImmediate(resolve));
@@ -111,10 +132,11 @@ test("canonical submission returns accepted then progresses asynchronously to co
   });
 
   try {
+    const headers = await authorizedHeaders(runtimeApp);
     const response = await runtimeApp.inject({
       method: "POST",
       url: "/api/v1/conversations/conv_123/messages",
-      headers: { "x-request-id": "request-123" },
+      headers: { ...headers, "x-request-id": "request-123" },
       payload: { content: [{ type: "text", text: "Hello Gexor" }] },
     });
     assert.equal(response.statusCode, 202);
@@ -126,6 +148,7 @@ test("canonical submission returns accepted then progresses asynchronously to co
       runtimeApp,
       accepted.links.execution,
       "dispatching",
+      headers,
     );
     assert.equal(dispatching.requestId, "request-123");
     assert.equal(dispatching.startedAt !== undefined, true);
@@ -141,6 +164,7 @@ test("canonical submission returns accepted then progresses asynchronously to co
       runtimeApp,
       accepted.links.execution,
       "completed",
+      headers,
     );
     assert.equal(completed.executionId, accepted.executionId);
     assert.equal(completed.messageId, accepted.messageId);
@@ -171,13 +195,15 @@ test("asynchronous provider failures become safe failed snapshots", async () => 
   });
 
   try {
+    const headers = await authorizedHeaders(runtimeApp);
     const response = await runtimeApp.inject({
       method: "POST",
       url: "/api/v1/conversations/conv_123/messages",
+      headers,
       payload: { content: [{ type: "text", text: "Hello" }] },
     });
     const accepted = response.json();
-    const failed = await waitForState(runtimeApp, accepted.links.execution, "failed");
+    const failed = await waitForState(runtimeApp, accepted.links.execution, "failed", headers);
     assert.deepEqual(failed.failure, {
       code: "PROVIDER_REQUEST_REJECTED",
       detail: "The provider rejected the request.",
@@ -205,13 +231,15 @@ test("provider timeouts become timed_out snapshots", async () => {
   });
 
   try {
+    const headers = await authorizedHeaders(runtimeApp);
     const response = await runtimeApp.inject({
       method: "POST",
       url: "/api/v1/conversations/conv_123/messages",
+      headers,
       payload: { content: [{ type: "text", text: "Hello" }] },
     });
     const accepted = response.json();
-    const timedOut = await waitForState(runtimeApp, accepted.links.execution, "timed_out");
+    const timedOut = await waitForState(runtimeApp, accepted.links.execution, "timed_out", headers);
     assert.equal(timedOut.failure?.code, "PROVIDER_TIMEOUT");
     assert.equal(timedOut.failure?.retryable, true);
   } finally {
@@ -279,8 +307,9 @@ test("unknown routes and missing executions use canonical problems", async () =>
     status: 404, code: "ROUTE_NOT_FOUND", retryable: false,
   });
 
+  const headers = await authorizedHeaders(app);
   const missingExecution = await app.inject({
-    method: "GET", url: "/api/v1/executions/exec_missing",
+    method: "GET", url: "/api/v1/executions/exec_missing", headers,
   });
   assertProblem(missingExecution, {
     status: 404, code: "EXECUTION_NOT_FOUND", retryable: false,
