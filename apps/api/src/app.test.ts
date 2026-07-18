@@ -53,9 +53,13 @@ async function authorizedHeaders(targetApp: ReturnType<typeof buildApp>) {
     },
   });
   assert.equal(response.statusCode, 201);
-  const body = response.json() as { sessionToken: string; workspace: { workspaceId: string } };
+  const body = response.json() as { workspace: { workspaceId: string } };
+  const header=response.headers["set-cookie"];const values=Array.isArray(header)?header:[String(header)];
+  const pairs=values.map(value=>value.split(";",1)[0]!);const csrf=pairs.find(value=>value.startsWith("gexor_csrf="))?.slice("gexor_csrf=".length);
+  assert.ok(csrf);
   return {
-    authorization: "Bearer " + body.sessionToken,
+    cookie:pairs.join("; "),
+    "x-csrf-token":decodeURIComponent(csrf),
     "x-workspace-id": body.workspace.workspaceId,
   };
 }

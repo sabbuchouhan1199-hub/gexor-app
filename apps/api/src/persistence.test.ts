@@ -36,11 +36,15 @@ function ids(prefix = "id") {
 test("core migration applies and rolls back deterministically", () => {
   const database = new SqliteDatabase({ filename: ":memory:", now });
   database.migrate();
+  assert.equal(database.prepare("SELECT count(*) AS count FROM schema_migrations").get()!.count, 3);
+  assert.equal(database.rollbackLastMigration(), 3);
   assert.equal(database.prepare("SELECT count(*) AS count FROM schema_migrations").get()!.count, 2);
-  assert.equal(database.rollbackLastMigration(), 2);
-  assert.equal(database.prepare("SELECT count(*) AS count FROM schema_migrations").get()!.count, 1);
   database.migrate();
   assert.ok(database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'outbox_events'").get());
+  assert.ok(database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'execution_events'").get());
+  assert.ok(database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'execution_jobs'").get());
+  assert.ok(database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'usage_records'").get());
+  assert.ok(database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'file_attachments'").get());
   database.close();
 });
 

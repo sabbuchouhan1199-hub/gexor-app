@@ -134,6 +134,46 @@ export class GeminiProvider implements TextProvider {
     this.fetchImplementation = options.fetchImplementation ?? fetch;
   }
 
+  async *streamText(request: GenerateTextRequest) {
+    const input = request.input.trim();
+    if (!input) throw new Error("Provider input must not be empty.");
+    const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+    const signal = request.signal ? AbortSignal.any([controller.signal, request.signal]) : controller.signal;
+    try {
+      const response = await this.fetchImplementation(
+        `${BASE_URL}/${encodeURIComponent(this.model)}:streamGenerateContent?alt=sse`,
+        { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": this.apiKey },
+          body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: input }] }] }), signal },
+      );
+      if (!response.ok) {
+        const invalidApiKey = response.status === 400 ? await hasStructuredInvalidApiKey(response) : false;
+        throw mapHttpError(response.status, invalidApiKey);
+      }
+      if (!response.body) throw new ProviderError({ code: "PROVIDER_INVALID_RESPONSE", message: "The provider returned no response stream.", status: 502, retryable: false });
+      const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = ""; let text = "";
+      while (true) {
+        const item = await reader.read(); buffer += decoder.decode(item.value, { stream: !item.done });
+        const frames = buffer.split("\n\n"); buffer = item.done ? "" : frames.pop() ?? "";
+        for (const frame of frames) {
+          const data = frame.split("\n").filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trim()).join("");
+          if (!data || data === "[DONE]") continue;
+          let payload: GeminiPayload;
+          try { payload = JSON.parse(data) as GeminiPayload; } catch { throw new ProviderError({ code: "PROVIDER_INVALID_RESPONSE", message: "The provider returned invalid stream data.", status: 502, retryable: false }); }
+          const delta = payload.candidates?.[0]?.content?.parts?.flatMap((part) => typeof part.text === "string" ? [part.text] : []).join("") ?? "";
+          if (delta) { text += delta; yield { provider: "gemini", model: this.model, delta, done: false }; }
+        }
+        if (item.done) break;
+      }
+      if (!text.trim()) throw new ProviderError({ code: "PROVIDER_INVALID_RESPONSE", message: "The provider returned no usable streamed text.", status: 502, retryable: false });
+      yield { provider: "gemini", model: this.model, delta: "", done: true };
+    } catch (error) {
+      if (request.signal?.aborted) throw error;
+      if (error instanceof ProviderError) throw error;
+      if (error instanceof Error && error.name === "AbortError") throw new ProviderError({ code: "PROVIDER_TIMEOUT", message: "The provider request timed out.", status: 504, retryable: true });
+      throw new ProviderError({ code: "PROVIDER_UNAVAILABLE", message: "The provider could not be reached.", status: 503, retryable: true });
+    } finally { clearTimeout(timeout); }
+  }
+
   async generateText(request: GenerateTextRequest): Promise<GenerateTextResult> {
     const input = request.input.trim();
     if (input.length === 0) {

@@ -68,7 +68,6 @@ export type LoginRequest = {
 
 export type AuthenticationResponse = {
   user: AuthenticatedUser;
-  sessionToken: string;
   session: AuthSessionSummary;
   workspace: PersonalWorkspace;
   membership: WorkspaceMembership;
@@ -78,7 +77,7 @@ export type RegisterResponse = AuthenticationResponse;
 
 export type LoginResponse = AuthenticationResponse;
 
-export type CurrentUserResponse = Omit<AuthenticationResponse, "sessionToken">;
+export type CurrentUserResponse = AuthenticationResponse;
 
 export type ApiProblemCode =
   | "AUTHENTICATION_REQUIRED"
@@ -105,7 +104,17 @@ export type ApiProblemCode =
   | "PROVIDER_RATE_LIMITED"
   | "PROVIDER_TIMEOUT"
   | "PROVIDER_UNAVAILABLE"
-  | "PROVIDER_INVALID_RESPONSE";
+  | "PROVIDER_INVALID_RESPONSE"
+  | "CSRF_VALIDATION_FAILED"
+  | "ORIGIN_NOT_ALLOWED"
+  | "EXECUTION_NOT_CANCELLABLE"
+  | "EXECUTION_NOT_RETRYABLE"
+  | "REPLAY_GAP"
+  | "RATE_LIMITED"
+  | "UPLOAD_TOO_LARGE"
+  | "UNSUPPORTED_FILE_TYPE"
+  | "FILE_NOT_FOUND"
+  | "BUDGET_EXCEEDED";
 
 export type ApiProblem = {
   type: string;
@@ -199,4 +208,60 @@ export type MessageSubmissionResponse = {
 
 export type RuntimeExecutionResponse = RuntimeExecutionSnapshot & {
   links: { self: string };
+};
+
+export const executionEventTypes = [
+  "execution.snapshot", "execution.started", "response.delta", "response.completed",
+  "execution.cancelled", "execution.failed", "execution.timed_out", "heartbeat",
+] as const;
+export type ExecutionEventType = (typeof executionEventTypes)[number];
+export type ExecutionStreamEvent = {
+  eventId: string; executionId: string; eventType: ExecutionEventType;
+  timestamp: string; sequence: number; payload: Record<string, unknown>;
+};
+export type ExecutionReplayResponse = {
+  events: ExecutionStreamEvent[]; snapshot: RuntimeExecutionSnapshot;
+  replayGap: boolean; nextSequence: number;
+};
+export type ExecutionRelationship = "initial" | "retry" | "regenerate";
+export type ExecutionActionResponse = MessageSubmissionResponse & {
+  relationship: ExecutionRelationship; sourceExecutionId?: string;
+};
+export type CancellationResponse = {
+  executionId: string;
+  status: "requested" | "completed" | "no_longer_possible";
+  state: RuntimeExecutionState;
+};
+
+export type ProviderHealthState = "unknown" | "healthy" | "degraded" | "unhealthy" | "disabled";
+export type ProviderRoutingStatus = {
+  connectionId: string; priority: number; enabled: boolean; isDefault: boolean;
+  healthState: ProviderHealthState; lastCheckedAt?: string; safeFailureCode?: string;
+  safeFailureMessage?: string; latencyMs?: number; consecutiveFailures: number;
+};
+export type UpdateProviderRoutingRequest = { priority?: number; enabled?: boolean; isDefault?: boolean };
+
+export type UsageClassification = "measured" | "estimated" | "unavailable";
+export type UsageDashboard = {
+  range: { from: string; to: string };
+  totals: {
+    requests: number; successful: number; failed: number; cancelled: number; timedOut: number;
+    inputTokens: number; outputTokens: number; totalTokens: number;
+    estimatedCostMicros: number; currency: string;
+  };
+  byProvider: Array<{ provider: string; model: string; requests: number; tokens: number; costMicros: number }>;
+  usageClassification: { measured: number; estimated: number; unavailable: number };
+  budget?: { requestLimit?: number; tokenLimit?: number; costLimitMicros?: number; state: "remaining" | "warning" | "reached" | "exceeded" };
+};
+
+export type UpdateWorkspaceBudgetRequest = { requestLimit?: number; tokenLimit?: number; costLimitMicros?: number };
+
+export type ConversationSearchResult = { conversation: ConversationSummary; snippet?: string };
+export type ConversationSearchResponse = { results: ConversationSearchResult[]; nextCursor?: string };
+export type RenameConversationRequest = { title: string };
+export type FileExtractionState = "pending" | "processing" | "ready" | "failed";
+export type ConversationAttachment = {
+  fileId: string; conversationId: string; displayName: string; contentType: string;
+  sizeBytes: number; extractionState: FileExtractionState; safeFailureCode?: string;
+  createdAt: string; updatedAt: string;
 };

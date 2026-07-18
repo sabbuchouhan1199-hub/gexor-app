@@ -10,6 +10,8 @@ import {
   SqliteWorkspaceRepository,
 } from "./persistence/sqlite-repositories.js";
 import { SqliteRegistrationService } from "./persistence/sqlite-registration-service.js";
+import { SqliteAttachmentRepository } from "./persistence/attachment-repository.js";
+import { SqliteProductionRuntimeRepository } from "./persistence/production-runtime-repository.js";
 import {
   SqliteMessageAcceptanceRepository,
   SqliteRuntimeExecutionStore,
@@ -26,6 +28,8 @@ async function startServer(): Promise<void> {
   database.migrate();
   const passwordHasher = new PasswordHasher();
   const executionStore = new SqliteRuntimeExecutionStore(database);
+  const productionRuntime = new SqliteProductionRuntimeRepository(database, executionStore);
+  const attachments = new SqliteAttachmentRepository(database, { root: config.uploadPath, maxBytes: config.maxUploadBytes, maxWorkspaceBytes: config.maxWorkspaceUploadBytes, maxConversationFiles: config.maxConversationFiles });
   const providerConnections = new SqliteProviderConnectionRepository(database);
   const workspaceProviders = new WorkspaceProviderConnectionService(
     providerConnections,
@@ -52,10 +56,15 @@ async function startServer(): Promise<void> {
     passwordHasher,
     atomicRegistration: new SqliteRegistrationService(database, { passwordHasher }),
     conversationRepository: new SqliteConversationRepository(database),
-    messageAcceptanceRepository: new SqliteMessageAcceptanceRepository(database, executionStore),
+    messageAcceptanceRepository: new SqliteMessageAcceptanceRepository(database, executionStore, { durableRuntime: productionRuntime }),
+    productionRuntime,
+    attachmentRepository: attachments,
     providerConnectionRepository: providerConnections,
     providerConnectionService: workspaceProviders,
     workspaceProviderResolver: (workspaceId) => workspaceProviders.providerForWorkspace(workspaceId),
+    authCookies: { secure: config.cookieSecure, ...(config.allowedOrigin ? { allowedOrigin: config.allowedOrigin } : {}) },
+    structuredLogging: config.cookieSecure,
+    readiness: () => Boolean(database.prepare("SELECT 1 AS ready").get()),
   });
   app.addHook("onClose", async () => database.close());
 

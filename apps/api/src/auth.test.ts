@@ -244,7 +244,6 @@ test("shared authentication transport contracts compile with safe public shapes"
       createdAt: "2026-07-18T00:00:00.000Z",
       updatedAt: "2026-07-18T00:00:00.000Z",
     },
-    sessionToken: "synthetic-one-time-token",
     session: {
       sessionId: "session_test",
       userId: "user_test",
@@ -278,5 +277,5 @@ test("shared authentication transport contracts compile with safe public shapes"
   assert.equal(registerResponse.user.userId, loginResponse.session.userId);
   assert.equal("passwordHash" in response.user, false);
   assert.equal("tokenHash" in response.session, false);
-  assert.equal(typeof response.sessionToken, "string");
+  assert.equal("sessionToken" in response, false);
 });

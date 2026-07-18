@@ -5,6 +5,7 @@ import type {
   AuthSessionSummary,
   ConversationSummary,
   ConversationMessage,
+  ConversationSearchResult,
   RuntimeExecutionFailure,
   RuntimeExecutionSnapshot,
   PersonalWorkspace,
@@ -354,6 +355,9 @@ export type ConversationRepository = {
   create(workspaceId: string, userId: string, title: string): Promise<ConversationSummary>;
   find(workspaceId: string, conversationId: string): Promise<ConversationSummary | undefined>;
   list(workspaceId: string): Promise<ConversationSummary[]>;
+  rename(workspaceId: string, conversationId: string, title: string): Promise<ConversationSummary | undefined>;
+  softDelete(workspaceId: string, conversationId: string, actorUserId: string): Promise<boolean>;
+  search(workspaceId: string, query: string, offset: number, limit: number): Promise<ConversationSearchResult[]>;
   messages(workspaceId: string, conversationId: string): Promise<ConversationMessage[] | undefined>;
 };
 
@@ -404,14 +408,48 @@ export class SqliteConversationRepository implements ConversationRepository {
     return Promise.all(rows.map(async ({ id }) => (await this.find(workspaceId, id))!));
   }
 
+  async rename(workspaceId: string, conversationId: string, title: string): Promise<ConversationSummary | undefined> {
+    const normalized = title.trim(); if (!normalized || normalized.length > 200) throw new Error("Invalid conversation title.");
+    const timestamp = this.#now().toISOString();
+    this.#database.prepare("UPDATE conversations SET title=?, updated_at=?, version=version+1 WHERE workspace_id=? AND id=? AND status='active'")
+      .run(normalized, timestamp, workspaceId, conversationId);
+    const result = await this.find(workspaceId, conversationId);
+    return result?.status === "active" ? result : undefined;
+  }
+
+  async softDelete(workspaceId: string, conversationId: string, actorUserId: string): Promise<boolean> {
+    const timestamp = this.#now().toISOString();
+    return this.#database.transaction(() => {
+      const updated = this.#database.prepare("UPDATE conversations SET status='archived', updated_at=?, version=version+1 WHERE workspace_id=? AND id=? AND status='active'")
+        .run(timestamp, workspaceId, conversationId);
+      if (updated.changes !== 1 && updated.changes !== 1n) return false;
+      this.#database.prepare("INSERT INTO conversation_deletions(conversation_id,workspace_id,deleted_by,deleted_at) VALUES (?,?,?,?)")
+        .run(conversationId, workspaceId, actorUserId, timestamp);
+      return true;
+    });
+  }
+
+  async search(workspaceId: string, query: string, offset: number, limit: number): Promise<ConversationSearchResult[]> {
+    const normalized = query.trim(); if (!normalized || normalized.length > 200) return [];
+    const escaped = normalized.toLowerCase().replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+    const pattern = `%${escaped}%`; const boundedLimit = Math.min(50, Math.max(1, limit)); const boundedOffset = Math.max(0, offset);
+    const rows = this.#database.prepare(`SELECT c.id,
+      COALESCE((SELECT substr(m.content_text,1,160) FROM messages m WHERE m.conversation_id=c.id AND m.workspace_id=c.workspace_id AND lower(m.content_text) LIKE ? ESCAPE '\\' ORDER BY m.created_at LIMIT 1), c.title) snippet
+      FROM conversations c WHERE c.workspace_id=? AND c.status='active'
+        AND (lower(c.title) LIKE ? ESCAPE '\\' OR EXISTS(SELECT 1 FROM messages m WHERE m.conversation_id=c.id AND m.workspace_id=c.workspace_id AND lower(m.content_text) LIKE ? ESCAPE '\\'))
+      ORDER BY c.updated_at DESC, c.id LIMIT ? OFFSET ?`).all(pattern, workspaceId, pattern, pattern, boundedLimit, boundedOffset) as Array<{id:string;snippet:string}>;
+    return Promise.all(rows.map(async (row) => ({ conversation: (await this.find(workspaceId, row.id))!, snippet: row.snippet })));
+  }
+
   async messages(workspaceId: string, conversationId: string): Promise<ConversationMessage[] | undefined> {
-    if (!await this.find(workspaceId, conversationId)) return undefined;
-    const rows = this.#database.prepare(`SELECT m.id, m.conversation_id, m.content_text, m.state, m.created_at, e.id execution_id, e.request_id, e.state execution_state, e.updated_at execution_updated_at, e.started_at, e.completed_at, e.provider, e.model, e.response_text, e.failure_code, e.failure_detail, e.failure_retryable, e.requested_by FROM messages m LEFT JOIN runtime_executions e ON e.message_id=m.id WHERE m.workspace_id=? AND m.conversation_id=? ORDER BY m.created_at, m.id`).all(workspaceId, conversationId) as Array<Record<string, unknown>>;
+    const conversation = await this.find(workspaceId, conversationId);
+    if (!conversation || conversation.status !== "active") return undefined;
+    const rows = this.#database.prepare(`SELECT m.id, m.conversation_id, m.role, m.content_text, m.state, m.created_at, e.id execution_id, e.request_id, e.state execution_state, e.updated_at execution_updated_at, e.started_at, e.completed_at, e.provider, e.model, e.response_text, e.failure_code, e.failure_detail, e.failure_retryable, e.requested_by FROM messages m LEFT JOIN runtime_executions e ON e.message_id=m.id WHERE m.workspace_id=? AND m.conversation_id=? ORDER BY m.created_at, m.id`).all(workspaceId, conversationId) as Array<Record<string, unknown>>;
     const messages: ConversationMessage[] = [];
     for (const row of rows) {
       const execution: RuntimeExecutionSnapshot | undefined = row.execution_id ? { executionId:String(row.execution_id), messageId:String(row.id), conversationId:String(row.conversation_id), requestId:String(row.request_id), workspaceId, requestedBy:String(row.requested_by), state:row.execution_state as RuntimeExecutionSnapshot["state"], createdAt:String(row.created_at), updatedAt:String(row.execution_updated_at), ...(row.started_at?{startedAt:String(row.started_at)}:{}), ...(row.completed_at?{completedAt:String(row.completed_at)}:{}), ...(row.provider?{provider:String(row.provider)}:{}), ...(row.model?{model:String(row.model)}:{}), ...(row.response_text?{response:{text:String(row.response_text)}}:{}), ...(row.failure_code?{failure:{code:row.failure_code as RuntimeExecutionFailure["code"],detail:String(row.failure_detail),retryable:Boolean(row.failure_retryable)}}:{}) } : undefined;
-      messages.push({messageId:String(row.id),conversationId:String(row.conversation_id),role:"user",text:String(row.content_text),state:row.state as ConversationMessage["state"],createdAt:String(row.created_at),...(execution?{execution}:{})});
-      if(execution?.response?.text) messages.push({messageId:`:assistant`,conversationId:String(row.conversation_id),role:"assistant",text:execution.response.text,state:"complete",createdAt:execution.completedAt??execution.updatedAt});
+      if(row.role==="user") messages.push({messageId:String(row.id),conversationId:String(row.conversation_id),role:"user",text:String(row.content_text),state:row.state as ConversationMessage["state"],createdAt:String(row.created_at),...(execution?{execution}:{})});
+      if(execution?.response?.text) messages.push({messageId:`assistant:${execution.executionId}`,conversationId:String(row.conversation_id),role:"assistant",text:execution.response.text,state:"complete",createdAt:execution.completedAt??execution.updatedAt,execution});
     }
     return messages;
   }

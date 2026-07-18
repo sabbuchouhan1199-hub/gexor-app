@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 
-import type { AuthenticationResponse, RegisterRequest } from "@gexor/contracts";
+import type { RegisterRequest } from "@gexor/contracts";
 import { AuthDomainError } from "../auth/auth-errors.js";
-import type { AtomicRegistrationService } from "../auth/authentication-service.js";
+import type { AtomicRegistrationService, AuthenticationResult } from "../auth/authentication-service.js";
 import { normalizeEmail } from "../auth/email.js";
 import type { PasswordHashingService } from "../auth/identity-service.js";
 import { DEFAULT_SESSION_LIFETIME_MS } from "../auth/session-repository.js";
@@ -36,7 +36,7 @@ export class SqliteRegistrationService implements AtomicRegistrationService {
     this.#sessionLifetimeMs = options.sessionLifetimeMs ?? DEFAULT_SESSION_LIFETIME_MS;
   }
 
-  async register(input: RegisterRequest): Promise<AuthenticationResponse> {
+  async register(input: RegisterRequest): Promise<AuthenticationResult> {
     const email = normalizeEmail(input.email);
     const displayName = normalizeDisplayName(input.displayName);
     const passwordHash = await this.#passwordHasher.hash(input.password);

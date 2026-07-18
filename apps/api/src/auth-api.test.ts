@@ -84,6 +84,7 @@ function fixture() {
 }
 
 let emailSequence = 0;
+type AuthFixture = AuthenticationResponse & { testCookie: string; testCsrf: string };
 async function register(target: ReturnType<typeof fixture>["app"]) {
   emailSequence += 1;
   const response = await target.inject({
@@ -96,12 +97,20 @@ async function register(target: ReturnType<typeof fixture>["app"]) {
     },
   });
   assert.equal(response.statusCode, 201);
-  return response.json() as AuthenticationResponse;
+  const header = response.headers["set-cookie"];
+  const values = Array.isArray(header) ? header : [String(header)];
+  const pairs = values.map((value) => value.split(";", 1)[0]!);
+  const csrf = pairs.find((value) => value.startsWith("gexor_csrf="))?.slice("gexor_csrf=".length);
+  assert.ok(csrf);
+  return Object.assign(response.json() as AuthenticationResponse, {
+    testCookie: pairs.join("; "), testCsrf: decodeURIComponent(csrf),
+  }) as AuthFixture;
 }
 
-function headers(result: AuthenticationResponse, workspaceId = result.workspace.workspaceId) {
+function headers(result: AuthFixture, workspaceId = result.workspace.workspaceId) {
   return {
-    authorization: `Bearer ${result.sessionToken}`,
+    cookie: result.testCookie,
+    "x-csrf-token": result.testCsrf,
     "x-workspace-id": workspaceId,
   };
 }
@@ -194,7 +203,7 @@ test("logout is idempotent and revoked sessions cannot authorize requests", asyn
     const logout = await app.inject({
       method: "POST",
       url: "/api/v1/auth/logout",
-      headers: { authorization: headers(registered).authorization },
+      headers: headers(registered),
     });
     assert.equal(logout.statusCode, 204);
   }
@@ -244,7 +253,7 @@ test("canonical runtime requires bearer and explicit workspace context", async (
   const missingWorkspace = await app.inject({
     method: "POST",
     url: "/api/v1/conversations/conv_test/messages",
-    headers: { authorization: headers(registered).authorization },
+    headers: { cookie: registered.testCookie, "x-csrf-token": registered.testCsrf },
     payload: { content: [{ type: "text", text: "hello" }] },
   });
   assert.equal(missingWorkspace.statusCode, 400);

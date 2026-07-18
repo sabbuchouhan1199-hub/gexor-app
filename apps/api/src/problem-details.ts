@@ -163,6 +163,16 @@ export const problemDefinitions: Record<ApiProblemCode, ProblemDefinition> = {
     detail: "The provider returned an invalid response.",
     retryable: false,
   },
+  CSRF_VALIDATION_FAILED: { type: "https://docs.gexor/errors/csrf-validation-failed", title: "CSRF validation failed", detail: "The request could not be verified. Refresh and try again.", retryable: false },
+  ORIGIN_NOT_ALLOWED: { type: "https://docs.gexor/errors/origin-not-allowed", title: "Origin not allowed", detail: "The request origin is not allowed.", retryable: false },
+  EXECUTION_NOT_CANCELLABLE: { type: "https://docs.gexor/errors/execution-not-cancellable", title: "Execution not cancellable", detail: "The execution can no longer be cancelled.", retryable: false },
+  EXECUTION_NOT_RETRYABLE: { type: "https://docs.gexor/errors/execution-not-retryable", title: "Execution action unavailable", detail: "The requested execution action is not available in its current state.", retryable: false },
+  REPLAY_GAP: { type: "https://docs.gexor/errors/replay-gap", title: "Replay gap", detail: "Some historical stream events are unavailable; reconcile using the current snapshot.", retryable: true },
+  RATE_LIMITED: { type: "https://docs.gexor/errors/rate-limited", title: "Rate limited", detail: "Too many requests were received. Try again later.", retryable: true },
+  UPLOAD_TOO_LARGE: { type: "https://docs.gexor/errors/upload-too-large", title: "Upload too large", detail: "The uploaded document exceeds the configured size limit.", retryable: false },
+  UNSUPPORTED_FILE_TYPE: { type: "https://docs.gexor/errors/unsupported-file-type", title: "Unsupported file type", detail: "The uploaded document type is not supported or did not match its content.", retryable: false },
+  FILE_NOT_FOUND: { type: "https://docs.gexor/errors/file-not-found", title: "File not found", detail: "The requested attachment was not found.", retryable: false },
+  BUDGET_EXCEEDED: { type: "https://docs.gexor/errors/budget-exceeded", title: "Budget exceeded", detail: "The workspace usage limit has been reached.", retryable: false },
 };
 
 export function toSafeRuntimeFailure(error: unknown): RuntimeExecutionFailure {

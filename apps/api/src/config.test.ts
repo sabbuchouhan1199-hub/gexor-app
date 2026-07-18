@@ -19,6 +19,11 @@ test("configuration uses safe local defaults", () => {
       geminiModel: "gemini-3.1-flash-lite",
       geminiTimeoutMs: 120000,
       databasePath: ".data/gexor.sqlite",
+      cookieSecure: false,
+      uploadPath: ".data/uploads",
+      maxUploadBytes: 5242880,
+      maxWorkspaceUploadBytes: 26214400,
+      maxConversationFiles: 20,
     },
   );
 });
@@ -35,6 +40,13 @@ test("configuration accepts valid environment values", () => {
       GEMINI_API_KEY: "test-placeholder-key",
       GEMINI_MODEL: "gemini-test-model",
       GEMINI_TIMEOUT_MS: "45000",
+      NODE_ENV: "production",
+      GEXOR_ALLOWED_ORIGIN: "http://127.0.0.1:5173",
+      GEXOR_DATABASE_PATH: ".data/test.sqlite",
+      GEXOR_UPLOAD_PATH: ".data/test-uploads",
+      GEXOR_MAX_UPLOAD_BYTES: "1048576",
+      GEXOR_MAX_WORKSPACE_UPLOAD_BYTES: "2097152",
+      GEXOR_MAX_CONVERSATION_FILES: "3",
     }),
     {
       host: "0.0.0.0",
@@ -46,7 +58,13 @@ test("configuration accepts valid environment values", () => {
       geminiApiKey: "test-placeholder-key",
       geminiModel: "gemini-test-model",
       geminiTimeoutMs: 45000,
-      databasePath: ".data/gexor.sqlite",
+      databasePath: ".data/test.sqlite",
+      cookieSecure: true,
+      allowedOrigin: "http://127.0.0.1:5173",
+      uploadPath: ".data/test-uploads",
+      maxUploadBytes: 1048576,
+      maxWorkspaceUploadBytes: 2097152,
+      maxConversationFiles: 3,
     },
   );
 });

@@ -6,8 +6,10 @@ import type { IdentityService } from "./identity-service.js";
 import type { SessionRepository } from "./session-repository.js";
 import type { WorkspaceRepository } from "./workspace-repository.js";
 
+export type AuthenticationResult = AuthenticationResponse & { sessionToken: string };
+
 export type AtomicRegistrationService = {
-  register(input: RegisterRequest): Promise<AuthenticationResponse>;
+  register(input: RegisterRequest): Promise<AuthenticationResult>;
 };
 
 export type AuthenticationServiceOptions = {
@@ -33,7 +35,7 @@ export class AuthenticationService {
     this.#atomicRegistration = options.atomicRegistration;
   }
 
-  async register(input: RegisterRequest): Promise<AuthenticationResponse> {
+  async register(input: RegisterRequest): Promise<AuthenticationResult> {
     if (this.#atomicRegistration) return this.#atomicRegistration.register(input);
     const user = await this.#identityService.createIdentity(input);
     try {
@@ -47,7 +49,7 @@ export class AuthenticationService {
     }
   }
 
-  async login(input: LoginRequest): Promise<AuthenticationResponse> {
+  async login(input: LoginRequest): Promise<AuthenticationResult> {
     const user = await this.#identityService.verifyCredentials(input.email, input.password);
     const authorization = await this.#workspaces.findPersonalWorkspaceForUser(user.userId);
     if (!authorization) throw new AuthDomainError("WORKSPACE_INITIALIZATION_FAILED");

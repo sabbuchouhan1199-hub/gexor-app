@@ -13,6 +13,12 @@ export type ApiConfig = {
   geminiModel: string;
   geminiTimeoutMs: number;
   databasePath: string;
+  cookieSecure: boolean;
+  allowedOrigin?: string;
+  uploadPath: string;
+  maxUploadBytes: number;
+  maxWorkspaceUploadBytes: number;
+  maxConversationFiles: number;
 };
 
 type Environment = Record<string, string | undefined>;
@@ -179,5 +185,15 @@ export function loadApiConfig(
       ".data/gexor.sqlite",
       "GEXOR_DATABASE_PATH",
     ),
+    cookieSecure: environment.NODE_ENV === "production",
+    ...(readOptionalValue(environment.GEXOR_ALLOWED_ORIGIN) ? { allowedOrigin: readOptionalValue(environment.GEXOR_ALLOWED_ORIGIN) } : {}),
+    uploadPath: readRequiredValue(
+      environment.GEXOR_UPLOAD_PATH,
+      ".data/uploads",
+      "GEXOR_UPLOAD_PATH",
+    ),
+    maxUploadBytes: readPositiveWholeNumber(environment.GEXOR_MAX_UPLOAD_BYTES, "5242880", "GEXOR_MAX_UPLOAD_BYTES"),
+    maxWorkspaceUploadBytes: readPositiveWholeNumber(environment.GEXOR_MAX_WORKSPACE_UPLOAD_BYTES, "26214400", "GEXOR_MAX_WORKSPACE_UPLOAD_BYTES"),
+    maxConversationFiles: readPositiveWholeNumber(environment.GEXOR_MAX_CONVERSATION_FILES, "20", "GEXOR_MAX_CONVERSATION_FILES"),
   };
 }

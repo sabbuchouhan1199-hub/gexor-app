@@ -136,16 +136,18 @@ export class SqliteMessageAcceptanceRepository implements MessageAcceptanceRepos
   readonly #store: SqliteRuntimeExecutionStore;
   readonly #now: () => Date;
   readonly #createId: () => string;
+  readonly #durableRuntime?: { enqueueInitial(execution: RuntimeExecutionResponse): void };
 
   constructor(
     database: SqliteDatabase,
     store: SqliteRuntimeExecutionStore,
-    options: { now?: () => Date; createId?: () => string } = {},
+    options: { now?: () => Date; createId?: () => string; durableRuntime?: { enqueueInitial(execution: RuntimeExecutionResponse): void } } = {},
   ) {
     this.#database = database;
     this.#store = store;
     this.#now = options.now ?? (() => new Date());
     this.#createId = options.createId ?? randomUUID;
+    this.#durableRuntime = options.durableRuntime;
   }
 
   async accept(input: MessageAcceptanceInput): Promise<MessageAcceptanceResult> {
@@ -205,7 +207,9 @@ export class SqliteMessageAcceptanceRepository implements MessageAcceptanceRepos
         JSON.stringify({ executionId, messageId, conversationId: input.conversationId }),
         input.requestId, timestamp,
       );
-      return { outcome: 'accepted', execution: this.#store.get(executionId)! };
+      const execution = this.#store.get(executionId)!;
+      this.#durableRuntime?.enqueueInitial(execution);
+      return { outcome: 'accepted', execution };
     });
   }
 }

@@ -13,6 +13,8 @@
   "type": "module",
   "scripts": {
     "dev": "node --env-file-if-exists=../../.env --import tsx src/server.ts",
+    "worker": "node --env-file-if-exists=../../.env --import tsx src/worker.ts",
+    "backup": "node --env-file-if-exists=../../.env --import tsx src/operations/backup.ts",
     "start": "node --env-file-if-exists=../../.env --import tsx src/server.ts",
     "typecheck": "tsc --project tsconfig.json",
     "test": "tsx --test src/*.test.ts"
