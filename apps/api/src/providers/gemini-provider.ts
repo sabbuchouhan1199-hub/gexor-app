@@ -107,6 +107,33 @@ function mapHttpError(status: number, invalidApiKey = false): ProviderError {
   });
 }
 
+function parseSseEvent(frame: string): string | null {
+  const lines = frame.split(/\r?\n/);
+  const dataLines: string[] = [];
+  for (const line of lines) {
+    if (!line.trim() || line.startsWith(":")) {
+      continue;
+    }
+    const colonIdx = line.indexOf(":");
+    let field: string;
+    let value: string;
+    if (colonIdx !== -1) {
+      field = line.slice(0, colonIdx);
+      value = line.slice(colonIdx + 1);
+      if (value.startsWith(" ")) {
+        value = value.slice(1);
+      }
+    } else {
+      field = line;
+      value = "";
+    }
+    if (field === "data") {
+      dataLines.push(value);
+    }
+  }
+  return dataLines.length > 0 ? dataLines.join("\n") : null;
+}
+
 export class GeminiProvider implements TextProvider {
   private readonly apiKey: string;
   private readonly model: string;
@@ -152,11 +179,21 @@ export class GeminiProvider implements TextProvider {
       if (!response.body) throw new ProviderError({ code: "PROVIDER_INVALID_RESPONSE", message: "The provider returned no response stream.", status: 502, retryable: false });
       const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = ""; let text = "";
       while (true) {
-        const item = await reader.read(); buffer += decoder.decode(item.value, { stream: !item.done });
-        const frames = buffer.split("\n\n"); buffer = item.done ? "" : frames.pop() ?? "";
+        const item = await reader.read();
+        if (item.value) {
+          buffer += decoder.decode(item.value, { stream: !item.done });
+        } else if (item.done) {
+          buffer += decoder.decode();
+        }
+        const frames = buffer.split(/\r?\n\r?\n/);
+        const lastFrame = frames.pop() ?? "";
+        buffer = item.done ? "" : lastFrame;
+        if (item.done && lastFrame.trim()) {
+          frames.push(lastFrame);
+        }
         for (const frame of frames) {
-          const data = frame.split("\n").filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trim()).join("");
-          if (!data || data === "[DONE]") continue;
+          const data = parseSseEvent(frame);
+          if (data === null || data === "[DONE]") continue;
           let payload: GeminiPayload;
           try { payload = JSON.parse(data) as GeminiPayload; } catch { throw new ProviderError({ code: "PROVIDER_INVALID_RESPONSE", message: "The provider returned invalid stream data.", status: 502, retryable: false }); }
           const delta = payload.candidates?.[0]?.content?.parts?.flatMap((part) => typeof part.text === "string" ? [part.text] : []).join("") ?? "";

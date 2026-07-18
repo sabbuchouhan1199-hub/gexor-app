@@ -337,3 +337,247 @@ test("Gemini malformed HTTP 400 JSON is request rejected", async () => {
 test("Gemini absent HTTP 400 body is request rejected", async () => {
   await assertHttp400(null, "PROVIDER_REQUEST_REJECTED");
 });
+
+function mockStreamResponse(chunks: string[]): Response {
+  const stream = new ReadableStream({
+    async start(controller) {
+      const encoder = new TextEncoder();
+      for (const chunk of chunks) {
+        controller.enqueue(encoder.encode(chunk));
+      }
+      controller.close();
+    },
+  });
+  return new Response(stream, { status: 200 });
+}
+
+async function collectChunks(
+  provider: GeminiProvider,
+  input = "Hello",
+): Promise<Array<{ delta: string; done: boolean }>> {
+  const chunks: Array<{ delta: string; done: boolean }> = [];
+  for await (const chunk of provider.streamText!({ input })) {
+    chunks.push({ delta: chunk.delta, done: chunk.done });
+  }
+  return chunks;
+}
+
+test("Gemini stream - One LF-delimited SSE event containing text", async () => {
+  const payload = JSON.stringify({
+    candidates: [{ content: { parts: [{ text: "Hello" }] } }],
+  });
+  const response = mockStreamResponse([`data: ${payload}\n\n`]);
+  const provider = providerWithResponse(response);
+  const chunks = await collectChunks(provider);
+  assert.deepEqual(chunks, [
+    { delta: "Hello", done: false },
+    { delta: "", done: true },
+  ]);
+});
+
+test("Gemini stream - CRLF-delimited SSE events", async () => {
+  const p1 = JSON.stringify({ candidates: [{ content: { parts: [{ text: "Hello" }] } }] });
+  const p2 = JSON.stringify({ candidates: [{ content: { parts: [{ text: " World" }] } }] });
+  const response = mockStreamResponse([`data: ${p1}\r\n\r\ndata: ${p2}\r\n\r\n`]);
+  const provider = providerWithResponse(response);
+  const chunks = await collectChunks(provider);
+  assert.deepEqual(chunks, [
+    { delta: "Hello", done: false },
+    { delta: " World", done: false },
+    { delta: "", done: true },
+  ]);
+});
+
+test("Gemini stream - Multiple events delivered in one fetch chunk", async () => {
+  const p1 = JSON.stringify({ candidates: [{ content: { parts: [{ text: "A" }] } }] });
+  const p2 = JSON.stringify({ candidates: [{ content: { parts: [{ text: "B" }] } }] });
+  const response = mockStreamResponse([`data: ${p1}\n\ndata: ${p2}\n\n`]);
+  const provider = providerWithResponse(response);
+  const chunks = await collectChunks(provider);
+  assert.deepEqual(chunks, [
+    { delta: "A", done: false },
+    { delta: "B", done: false },
+    { delta: "", done: true },
+  ]);
+});
+
+test("Gemini stream - One event split across multiple reader chunks", async () => {
+  const p = JSON.stringify({ candidates: [{ content: { parts: [{ text: "LongText" }] } }] });
+  const raw = `data: ${p}\n\n`;
+  const part1 = raw.slice(0, 15);
+  const part2 = raw.slice(15);
+  const response = mockStreamResponse([part1, part2]);
+  const provider = providerWithResponse(response);
+  const chunks = await collectChunks(provider);
+  assert.deepEqual(chunks, [
+    { delta: "LongText", done: false },
+    { delta: "", done: true },
+  ]);
+});
+
+test("Gemini stream - Separator split across reader chunks", async () => {
+  const p1 = JSON.stringify({ candidates: [{ content: { parts: [{ text: "A" }] } }] });
+  const p2 = JSON.stringify({ candidates: [{ content: { parts: [{ text: "B" }] } }] });
+  const response = mockStreamResponse([
+    `data: ${p1}\n`,
+    `\ndata: ${p2}\n\n`,
+  ]);
+  const provider = providerWithResponse(response);
+  const chunks = await collectChunks(provider);
+  assert.deepEqual(chunks, [
+    { delta: "A", done: false },
+    { delta: "B", done: false },
+    { delta: "", done: true },
+  ]);
+});
+
+test("Gemini stream - A multibyte UTF-8 character split across chunks", async () => {
+  const emoji = "✨"; // 3 bytes in UTF-8: 0xE2 0x9C 0xA8
+  const p = JSON.stringify({ candidates: [{ content: { parts: [{ text: emoji }] } }] });
+  const payloadStr = `data: ${p}\n\n`;
+  const encoder = new TextEncoder();
+  const bytes = encoder.encode(payloadStr);
+  
+  const emojiBytes = encoder.encode(emoji);
+  const emojiIdx = bytes.indexOf(emojiBytes[0]);
+  
+  const part1 = bytes.slice(0, emojiIdx + 1);
+  const part2 = bytes.slice(emojiIdx + 1);
+  
+  const stream = new ReadableStream({
+    async start(controller) {
+      controller.enqueue(part1);
+      controller.enqueue(part2);
+      controller.close();
+    },
+  });
+  const response = new Response(stream, { status: 200 });
+  const provider = providerWithResponse(response);
+  const chunks = await collectChunks(provider);
+  assert.deepEqual(chunks, [
+    { delta: "✨", done: false },
+    { delta: "", done: true },
+  ]);
+});
+
+test("Gemini stream - Payload containing both text and thoughtSignature", async () => {
+  const payload = JSON.stringify({
+    candidates: [
+      {
+        content: {
+          parts: [
+            { text: "ResponseText" },
+            { text: "", thoughtSignature: "some-sig" }
+          ]
+        }
+      }
+    ]
+  });
+  const response = mockStreamResponse([`data: ${payload}\n\n`]);
+  const provider = providerWithResponse(response);
+  const chunks = await collectChunks(provider);
+  assert.deepEqual(chunks, [
+    { delta: "ResponseText", done: false },
+    { delta: "", done: true },
+  ]);
+});
+
+test("Gemini stream - Multiple text parts in one candidate", async () => {
+  const payload = JSON.stringify({
+    candidates: [
+      {
+        content: {
+          parts: [
+            { text: "Part1" },
+            { text: "Part2" }
+          ]
+        }
+      }
+    ]
+  });
+  const response = mockStreamResponse([`data: ${payload}\n\n`]);
+  const provider = providerWithResponse(response);
+  const chunks = await collectChunks(provider);
+  assert.deepEqual(chunks, [
+    { delta: "Part1Part2", done: false },
+    { delta: "", done: true },
+  ]);
+});
+
+test("Gemini stream - SSE comment and unrelated fields ignored", async () => {
+  const payload = JSON.stringify({ candidates: [{ content: { parts: [{ text: "Hello" }] } }] });
+  const sseData = `: comment here\nevent: message\ndata: ${payload}\nid: 123\n\n`;
+  const response = mockStreamResponse([sseData]);
+  const provider = providerWithResponse(response);
+  const chunks = await collectChunks(provider);
+  assert.deepEqual(chunks, [
+    { delta: "Hello", done: false },
+    { delta: "", done: true },
+  ]);
+});
+
+test("Gemini stream - Multiple data lines handled according to SSE semantics", async () => {
+  const line1 = '{"candidates":[{"content":{"parts":[';
+  const line2 = '{"text":"Part1"}';
+  const line3 = ']}}]}';
+  const sseData = `data: ${line1}\ndata: ${line2}\ndata: ${line3}\n\n`;
+  const response = mockStreamResponse([sseData]);
+  const provider = providerWithResponse(response);
+  const chunks = await collectChunks(provider);
+  assert.deepEqual(chunks, [
+    { delta: "Part1", done: false },
+    { delta: "", done: true },
+  ]);
+});
+
+test("Gemini stream - Final event without trailing blank separator", async () => {
+  const payload = JSON.stringify({ candidates: [{ content: { parts: [{ text: "Hello" }] } }] });
+  const response = mockStreamResponse([`data: ${payload}`]);
+  const provider = providerWithResponse(response);
+  const chunks = await collectChunks(provider);
+  assert.deepEqual(chunks, [
+    { delta: "Hello", done: false },
+    { delta: "", done: true },
+  ]);
+});
+
+test("Gemini stream - [DONE] frame ignored", async () => {
+  const payload = JSON.stringify({ candidates: [{ content: { parts: [{ text: "Hello" }] } }] });
+  const response = mockStreamResponse([
+    `data: ${payload}\n\n`,
+    `data: [DONE]\n\n`
+  ]);
+  const provider = providerWithResponse(response);
+  const chunks = await collectChunks(provider);
+  assert.deepEqual(chunks, [
+    { delta: "Hello", done: false },
+    { delta: "", done: true },
+  ]);
+});
+
+test("Gemini stream - Malformed JSON maps to PROVIDER_INVALID_RESPONSE", async () => {
+  const response = mockStreamResponse([`data: {invalid-json\n\n`]);
+  const provider = providerWithResponse(response);
+  await assert.rejects(
+    collectChunks(provider),
+    (error: unknown) => {
+      assert.ok(error instanceof ProviderError);
+      assert.equal(error.code, "PROVIDER_INVALID_RESPONSE");
+      return true;
+    }
+  );
+});
+
+test("Gemini stream - Successful stream with no usable text maps to PROVIDER_INVALID_RESPONSE", async () => {
+  const payload = JSON.stringify({ candidates: [{ content: { parts: [{ text: "   " }] } }] });
+  const response = mockStreamResponse([`data: ${payload}\n\n`]);
+  const provider = providerWithResponse(response);
+  await assert.rejects(
+    collectChunks(provider),
+    (error: unknown) => {
+      assert.ok(error instanceof ProviderError);
+      assert.equal(error.code, "PROVIDER_INVALID_RESPONSE");
+      return true;
+    }
+  );
+});
