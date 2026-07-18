@@ -11,14 +11,14 @@ ready.
 The application proves a narrow browser → Vite → Fastify → configured provider
 request path. It includes strict TypeScript workspaces, deterministic tests,
 provider adapters, local configuration, recoverable browser request handling, and
-a development-installable PWA shell. It does not yet implement the canonical Gexor
-domain or public API.
+a development-installable PWA shell. It does not yet implement the complete canonical Gexor domain or public API.
 
 ## Implemented vertical slice
 
 - npm workspaces for the API, web client, and shared contracts;
 - Fastify health, deterministic mock-chat, and provider-backed chat routes;
-- strict request validation and normalized internal/provider errors;
+- strict request validation, canonical public API problems, and safe request
+  correlation;
 - provider-independent TextProvider interface with Ollama and Gemini adapters;
 - configuration-selected provider factory and dependency injection;
 - responsive React chat with timeout/abort, duplicate-submit prevention, and
@@ -26,6 +26,11 @@ domain or public API.
 - browser-to-Fastify integration coverage;
 - Vite development proxy;
 - Android-installable manifest and icons in standalone display mode;
+- shared canonical problem, message-submission, and runtime-execution contracts;
+- safe request-ID acceptance/generation and response correlation;
+- in-memory runtime execution aggregate with guarded baseline transitions;
+- canonical POST /api/v1/conversations/{conversationId}/messages and GET
+  /api/v1/executions/{executionId} skeleton endpoints;
 - workspace typecheck, test, build, and root verification commands.
 
 ## Current architecture
@@ -33,15 +38,18 @@ domain or public API.
 The browser posts a minimal shared ChatRequest to Vite's development proxy. Fastify
 validates it and directly invokes the process-selected TextProvider. The adapter
 makes a non-streaming provider request and Fastify returns a minimal ChatResponse.
-There is no runtime execution aggregate, durable pipeline, database, queue, worker,
-or streaming relay yet.
+The canonical submission endpoint creates an in-memory execution aggregate in the
+`created` state, and the execution endpoint reads it back. The temporary `/chat`
+route still invokes the selected provider directly. There is no durable pipeline,
+database, queue, worker, provider dispatch from the execution skeleton, or streaming
+relay yet.
 
 ## Repository structure
 
 ~~~text
 apps/api/              Fastify application, configuration, and provider adapters
 apps/web/              React/Vite chat and development PWA assets
-packages/contracts/    Minimal temporary shared chat request/response types
+packages/contracts/    Shared problem, chat, message, and execution contracts
 ~~~
 
 ## Local development prerequisites
@@ -108,16 +116,19 @@ dependency.
 - POST /mock/chat is a deterministic verification route and does not call a
   provider.
 
-These routes are not the documented /api/v1 resource contract. They provide no
-conversation/message/execution resources, 202 acceptance, idempotency key, request
-ID, SSE stream, cancellation, retry, or regeneration.
+These routes remain outside the canonical resource lifecycle. All API responses now
+carry a safe request ID, and failures use the shared provider-neutral problem
+contract. The separate versioned skeleton endpoints provide transient message and
+execution identities with 202 acceptance, but no durable idempotency, SSE stream,
+cancellation, retry, regeneration, or provider execution.
 
 ## Known limitations
 
 - no authentication, sessions, personal workspace, membership, authorization, or
   workspace isolation;
-- no database, migrations, projects, conversations, persistent messages, or
-  durable runtime state;
+- no database, migrations, projects, persistent conversations or messages, or
+  durable runtime state; the versioned resources are process-local and lost on
+  restart;
 - non-streaming responses only;
 - no intent classification, prompt enhancement, context retrieval, context
   snapshot, prompt snapshot, token budgeting, structured memory, memory candidate,
@@ -168,18 +179,16 @@ requirement or production acceptance criteria.
 
 ## Current next architectural milestone
 
-The next milestone is canonical shared API and public error contracts, followed by a
-runtime execution state-machine skeleton. The broader dependency order is:
+Canonical shared API problems, request correlation, and the in-memory runtime
+execution skeleton are now implemented. The remaining dependency order is:
 
-1. Canonical shared API and public error contracts
-2. Runtime execution state-machine skeleton
-3. Authentication and personal workspace boundary
-4. Persistent domain repositories and transactional message acceptance
-5. Workspace-scoped provider connections and protected credential references
-6. SSE streaming, cancellation, and reconnect
-7. Context, prompt, and token-budget pipeline
-8. Usage, cost, quota, and routing transparency
-9. Structured memory and background-job foundation
-10. Production quality, security, observability, and deployment controls
+1. Authentication and personal workspace boundary
+2. Persistent domain repositories and transactional message acceptance
+3. Workspace-scoped provider connections and protected credential references
+4. SSE streaming, cancellation, and reconnect
+5. Context, prompt, and token-budget pipeline
+6. Usage, cost, quota, and routing transparency
+7. Structured memory and background-job foundation
+8. Production quality, security, observability, and deployment controls
 
 These items are planning guidance only; they are not implemented by this change.
