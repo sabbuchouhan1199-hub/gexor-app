@@ -5,13 +5,20 @@
 } from "react";
 
 import type {
+  ApiProblem,
   ChatRequest,
   ChatResponse,
 } from "@gexor/contracts";
 
 export const CHAT_REQUEST_TIMEOUT_MS = 125_000;
 
-type ApiErrorBody = { error?: { message?: unknown } };
+function isApiProblem(value: unknown): value is ApiProblem {
+  if (typeof value !== "object" || value === null) return false;
+  const problem = value as Partial<ApiProblem>;
+  return typeof problem.detail === "string"
+    && typeof problem.requestId === "string"
+    && typeof problem.retryable === "boolean";
+}
 
 function isChatResponse(value: unknown): value is ChatResponse {
   if (typeof value !== "object" || value === null) return false;
@@ -21,9 +28,8 @@ function isChatResponse(value: unknown): value is ChatResponse {
 
 async function getApiErrorMessage(response: Response): Promise<string> {
   try {
-    const body = (await response.json()) as ApiErrorBody;
-    const apiMessage = body.error?.message;
-    if (typeof apiMessage === "string" && apiMessage.trim()) return apiMessage;
+    const body: unknown = await response.json();
+    if (isApiProblem(body) && body.detail.trim()) return body.detail;
   } catch {
     // Fall back to the HTTP status when the response body is not safe JSON.
   }

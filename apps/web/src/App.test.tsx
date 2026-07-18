@@ -237,12 +237,13 @@ describe("Gexor browser chat", () => {
       vi.fn(async () => {
         return new Response(
           JSON.stringify({
-            error: {
-              code: "PROVIDER_UNAVAILABLE",
-              message:
-                "The provider is unavailable.",
-              status: 503,
-            },
+            type: "https://docs.gexor/errors/provider-unavailable",
+            title: "Provider unavailable",
+            status: 503,
+            code: "PROVIDER_UNAVAILABLE",
+            detail: "The provider is unavailable.",
+            requestId: "req_test",
+            retryable: true,
           }),
           {
             status: 503,
