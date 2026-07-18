@@ -1,193 +1,132 @@
 # Gexor
 
-Gexor is a provider-independent AI runtime platform intended to preserve a user's
-workspace, context, memory, knowledge, and continuity independently of an AI
-provider. This repository contains Gexor Version 1: a usable, phone-first authenticated personal workspace backed by the canonical durable API. It remains a single-node local application, not the complete documented MVP or a production deployment.
+Gexor is a provider-independent AI runtime and personal workspace. This repository contains a single-node local implementation with a React/Vite web app, Fastify API, shared TypeScript contracts, SQLite persistence, durable execution queueing, live SSE streaming, secure cookie browser sessions, provider routing, usage accounting, chat management, file-upload foundations, and production-oriented operations scaffolding.
 
-## Current implementation stage
+This is not a high-availability production deployment. It is a production-grade local/runtime foundation that keeps secrets out of the browser, preserves ownership isolation, and documents remaining distributed-system limitations.
 
-The application now provides browser registration, login, logout, durable session restoration, conversation navigation and history, canonical idempotent message execution, workspace provider/model setup, safe retry behavior, and a responsive installable PWA interface. SQLite preserves identities, sessions, workspaces, provider connections, conversations, messages, executions, idempotency, and outbox evidence across restart.
+## Repository Structure
 
-## Implemented vertical slice
+```text
+apps/api/              Fastify API, SQLite migrations, runtime worker, providers, operations
+apps/web/              React/Vite authenticated workspace UI
+packages/contracts/    Shared API/runtime/provider/usage/upload contracts
+docs/                  API and operations notes
+```
 
-- npm workspaces for the API, web client, and shared contracts;
-- Fastify compatibility and versioned health, deterministic mock-chat, and
-  provider-backed chat routes;
-- strict request validation, canonical public API problems, and safe request
-  correlation;
-- provider-independent TextProvider interface with Ollama and Gemini adapters;
-- configuration-selected provider factory and dependency injection;
-- responsive React chat with timeout/abort, duplicate-submit prevention, and
-  recoverable errors;
-- browser-to-Fastify integration coverage;
-- Vite development proxy;
-- Android-installable manifest and icons in standalone display mode;
-- shared canonical problem, message-submission, and runtime-execution contracts;
-- safe request-ID acceptance/generation and response correlation;
-- in-memory runtime execution aggregate with guarded narrow transitions, timestamps,
-  correlation, safe outcomes, and asynchronous progress;
-- canonical POST /api/v1/conversations/{conversationId}/messages and GET
-  /api/v1/executions/{executionId} endpoints;
-- workspace typecheck, test, build, and root verification commands.
+## Current Runtime Architecture
 
-## Current architecture
+The canonical browser flow uses versioned API routes only:
 
-The browser uses the versioned authenticated API through Vite's development proxy. Fastify authorizes the session and workspace, accepts each message transactionally into SQLite, then schedules provider dispatch. Execution reads and conversation history expose durable provider-neutral progress and terminal outcomes. The compatibility routes remain separate from the normal browser journey. Canonical identity, session, workspace, conversation, message, execution, idempotency, and outbox state now uses a migrated SQLite database. Provider dispatch remains in-process and non-streaming; there is no queue or worker.
+```text
+React/Vite client
+  -> HttpOnly session cookie + CSRF proof + X-Workspace-Id
+  -> Fastify validation, rate limits, session and workspace authorization
+  -> transactional SQLite acceptance with idempotency, outbox evidence, queue job, and replay snapshot
+  -> durable worker lease/claim loop
+  -> provider-neutral streaming or generateText adapter
+  -> durable execution_events, usage_records, provider_attempts, and terminal execution state
+  -> SSE replay/reconnect to the browser
+```
 
-## Usable authentication and personal workspace
+Compatibility `/chat` and `/mock/chat` routes remain for local development and testing. They are not the canonical product lifecycle.
 
-The versioned API now exposes register, login, logout, and current-user endpoints. Registration validates and normalizes identity input, creates an active account, provisions one personal workspace with an active owner membership, and returns an opaque bearer session. Failed in-process workspace initialization rolls back the new identity. Login failures remain enumeration-resistant, logout is idempotent, and expired or revoked sessions cannot authorize requests.
+## Implemented Capabilities
 
-Canonical message submission and execution reads require a valid bearer session plus an explicit server-authorized `X-Workspace-Id`. Membership is revalidated on every protected request, and cross-workspace execution access fails closed. The temporary `/chat` and `/mock/chat` routes remain unauthenticated development compatibility behavior outside the canonical product surface.
+- HttpOnly browser session cookies with production `Secure` behavior, SameSite=Lax, logout invalidation, `/api/v1/auth/me` restoration, and CSRF checks for cookie-authenticated unsafe requests.
+- Workspace-scoped authorization on conversations, messages, executions, provider connections, usage, and files.
+- Durable SQLite migrations through `003_production_runtime` for replay events, queue jobs, execution relationships, provider routing and attempts, usage and budgets, soft-deletion evidence, file attachments, and file chunks.
+- Live Server-Sent Events for execution replay and incremental response deltas.
+- Cancel, retry, and regenerate execution controls with durable relationships and idempotency keys.
+- Durable background worker with SQLite leases, retry wait, stale lease recovery, bounded attempts, dead-letter state, graceful shutdown, and queue metrics.
+- Provider connection management with safe redaction, health state, enable/disable, default/priority routing, and bounded fallback by attempt number.
+- Usage dashboard data with request outcomes, estimated token usage, cost placeholders using an unpriced pricing version, provider/model breakdowns, and optional workspace budgets.
+- Chat rename, soft delete, workspace-scoped search, responsive controls, streaming indicator, safe Markdown/code rendering, and copy-code control.
+- File upload foundation for PDF, plain text, and Markdown with type/signature checks, server-generated storage keys, local private storage, bounded extraction, chunks, and untrusted document grounding.
+- Structured JSON logging in production, redaction, protected metrics, health/readiness endpoints, in-memory layered rate limits, SQLite online backup command, and GitHub Actions CI.
 
-Identity, session, workspace, membership, conversation, message, execution, idempotency, and outbox state is persisted in SQLite and survives restart. Registration and canonical message acceptance are transactional, session revocation is durable, and equivalent idempotent message retries return the original execution. There is no distributed database deployment, durable outbox publisher, production rate limiting, email verification, recovery, MFA/passkeys, browser authentication UI, cookie authentication, or production-readiness claim. Conversation ownership is not durable until the persistence stage.
+## Local Development
 
-## Workspace-scoped provider connections
-
-Authenticated workspace owners can list the provider/model catalogue and create, validate, select, revoke, or rotate a workspace-owned provider connection. Public connection responses never include the protected credential reference. The database stores only the opaque reference, lifecycle state, model selection, and lifecycle audit evidence; provider credentials are resolved only at dispatch. Canonical message execution requires an active selected connection.
-
-For local development only, local-env:configured may reference the process-configured provider. This compatibility reference does not store the credential and is not a production secret-manager implementation. The temporary /chat route retains process-level provider behavior outside the canonical product surface. Production secret-manager integration, audit export, and provider health operations remain future work.
-
-## Repository structure
-
-~~~text
-apps/api/              Fastify application, configuration, and provider adapters
-apps/web/              React/Vite chat and development PWA assets
-packages/contracts/    Shared problem, chat, message, and execution contracts
-~~~
-
-## Local development prerequisites
+Prerequisites:
 
 - Node.js 24.18.x
 - npm 11.16.x
-- either a reachable local Ollama installation/model or a Gemini API key
+- local Ollama or a configured Gemini key if provider-backed execution is required
 
-Install locked dependencies with:
+Install dependencies:
 
-~~~sh
+```sh
 npm install
-~~~
+```
 
-## Safe environment setup
+Create local configuration from safe placeholders:
 
-Copy the tracked placeholder template to a local environment file and replace only
-local placeholder values:
-
-~~~sh
+```sh
 cp .env.example .env
-~~~
+```
 
-The local .env file is ignored. Never commit provider credentials, paste them into
-issues or logs, expose them to the browser, or add real values to .env.example.
-Provider selection is currently process-level local configuration, not the final
-workspace-owned provider-connection and secret-reference architecture.
+Never commit `.env`, provider credentials, cookies, tokens, local SQLite data, uploaded files, backups, or runtime logs.
 
-## Development commands
+Run the API, worker, and web client together:
 
-~~~sh
+```sh
 npm run dev
-~~~
+```
 
-This starts the Fastify API and Vite development server together. Vite hot module
-replacement remains the normal frontend development workflow.
+Run individual services:
 
-Individual root workflows are also available:
+```sh
+npm run dev:api
+npm run dev:worker
+npm run dev --workspace apps/web
+```
 
-~~~sh
+Run backups:
+
+```sh
+npm run backup
+```
+
+## Verification
+
+```sh
 npm run typecheck
 npm run test
 npm run build
 npm run verify
-~~~
+```
 
-## Verification commands
+Provider tests use controlled doubles and do not require live external provider credentials.
 
-Run the complete local verification gate before proposing a change:
+## Canonical API Areas
 
-~~~sh
-npm run verify
-~~~
+See [docs/API_RUNTIME.md](docs/API_RUNTIME.md) for route details. Major groups include:
 
-The command runs all workspace typechecks, automated tests, and builds. Provider
-adapters use controlled test doubles; external provider availability is not a CI
-dependency.
+- `/api/v1/auth/*`
+- `/api/v1/workspaces/:workspaceId/conversations*`
+- `/api/v1/conversations/:conversationId/messages`
+- `/api/v1/executions/:executionId/*`
+- `/api/v1/workspaces/:workspaceId/provider-connections*`
+- `/api/v1/workspaces/:workspaceId/usage*`
+- `/api/v1/conversations/:conversationId/files`
+- `/api/v1/files/:fileId`
+- `/api/v1/health/*` and `/api/v1/metrics`
 
-## Temporary routes
+## Operations
 
-- GET /health reports the current Fastify process health; GET /api/v1/health is
-  the canonical equivalent.
-- POST /chat is a temporary, unversioned, synchronous development route that calls
-  the configured provider and returns 200 with a reply.
-- POST /mock/chat is a deterministic verification route and does not call a
-  provider.
+See [docs/OPERATIONS.md](docs/OPERATIONS.md) for backup/restore, structured logging, metrics, rate-limit, worker, and CI notes.
 
-These routes remain outside the canonical resource lifecycle. All API responses now
-carry a safe request ID, and failures use the shared provider-neutral problem
-contract. The versioned endpoints provide durable message and execution identities with 202 acceptance, asynchronous in-process provider execution, and durable idempotency, SSE stream, cancellation endpoint, retry, or regeneration.
+Important operational boundaries:
 
-## Known limitations
+- SQLite, queue leases, rate limits, metrics counters, and worker coordination are single-node/local by design.
+- Local file uploads are stored outside public web directories, but database and uploaded-file backups must be kept consistent by operations.
+- Cost accounting uses an explicit unpriced pricing version unless a maintained pricing table is configured later.
+- File extraction is bounded text extraction and chunking. It is not OCR and does not claim full semantic retrieval.
+- Uploaded document content is treated as untrusted reference data, not instructions.
 
-- authentication and personal-workspace APIs and browser flows are database-backed; there is no email verification, recovery, MFA,
-  production throttling, or production authentication assurance;
-- SQLite and ordered migrations provide durable single-node storage, but there is no high-availability database topology, backup automation, or external outbox publisher;
-- non-streaming responses only;
-- no intent classification, prompt enhancement, context retrieval, context
-  snapshot, prompt snapshot, token budgeting, structured memory, memory candidate,
-  Snapshot Lock, file ingestion, or search;
-- no usage, cost, quota, spending control, route-decision record, audit, durable
-  background job, worker, queue, export, retention, deletion, backup, or recovery;
-- no distributed observability, production deployment, CI/CD security gates, or
-  production incident-response readiness;
-- process-level credentials and provider selection are local compatibility behavior,
-  not the target secret-manager and workspace provider-connection boundary.
+## Secret Safety
 
-## PWA development behavior
-
-The web client has a manifest, standard and maskable icons, theme metadata, and
-standalone display configuration. Android development installation has been
-manually verified. There is no service worker and no offline cache. The installed
-development PWA requires the Termux/local development server to remain running.
-Offline and production service-worker behavior is deferred to a separate step.
-
-## Secret-safety rules
-
-- Keep .env local and ignored.
-- Keep real credentials out of source, tests, examples, diffs, logs, and client
-  bundles.
-- Use placeholders in tracked configuration examples.
-- Do not return provider keys or raw provider payloads in public errors.
-- Treat current local credential loading as temporary development behavior.
-
-## Documentation source of truth
-
-The separate gexor-docs repository is authoritative for product scope, functional
-and non-functional requirements, architecture, runtime, domain, database, API,
-security, UX, testing, deployment, and operations. Documents 01–14 define the target
-baseline. Document 15 reports implementation status and deviations without
-overriding that baseline.
-
-## Development workflow
-
-1. Select one dependency-ordered, explicitly authorized microstep.
-2. Read the governing requirement and adjacent contracts.
-3. Implement the smallest coherent change without weakening security boundaries.
-4. Add deterministic success and failure evidence.
-5. Run npm run verify and inspect the diff.
-6. Update implementation traceability when capability status materially changes.
-
-Do not infer that a passing local demonstration satisfies the complete MVP
-requirement or production acceptance criteria.
-
-## Current next architectural milestone
-
-Canonical shared API problems, request correlation, and the in-memory runtime
-execution foundation is now implemented. The remaining dependency order is:
-
-1. Workspace-scoped provider connections and protected credential references
-4. SSE streaming, cancellation, and reconnect
-5. Context, prompt, and token-budget pipeline
-6. Usage, cost, quota, and routing transparency
-7. Structured memory and background-job foundation
-8. Production quality, security, observability, and deployment controls
-
-These items are planning guidance only; they are not implemented by this change.
+- Do not inspect or commit `.env`.
+- `.env.example` contains variable names and safe placeholders only.
+- Browser code must not store bearer tokens in `localStorage` or `sessionStorage`.
+- Public APIs must not return provider credential references, provider secrets, raw provider payloads, cookies, tokens, uploaded document contents, private database paths, or local runtime data.
+- Logs, reports, tests, fixtures, and documentation must use synthetic values only.
