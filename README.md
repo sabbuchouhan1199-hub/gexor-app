@@ -52,6 +52,12 @@ Canonical message submission and execution reads require a valid bearer session 
 
 Identity, session, workspace, membership, conversation, message, execution, idempotency, and outbox state is persisted in SQLite and survives restart. Registration and canonical message acceptance are transactional, session revocation is durable, and equivalent idempotent message retries return the original execution. There is no distributed database deployment, durable outbox publisher, production rate limiting, email verification, recovery, MFA/passkeys, browser authentication UI, cookie authentication, or production-readiness claim. Conversation ownership is not durable until the persistence stage.
 
+## Workspace-scoped provider connections
+
+Authenticated workspace owners can list the provider/model catalogue and create, validate, select, revoke, or rotate a workspace-owned provider connection. Public connection responses never include the protected credential reference. The database stores only the opaque reference, lifecycle state, model selection, and lifecycle audit evidence; provider credentials are resolved only at dispatch. Canonical message execution requires an active selected connection.
+
+For local development only, local-env:configured may reference the process-configured provider. This compatibility reference does not store the credential and is not a production secret-manager implementation. The temporary /chat route retains process-level provider behavior outside the canonical product surface. Production secret-manager integration, audit export, and provider health operations remain future work.
+
 ## Repository structure
 
 ~~~text

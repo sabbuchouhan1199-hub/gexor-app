@@ -52,6 +52,7 @@ import {
 } from "./runtime-execution-store.js";
 import type { ConversationRepository } from "./persistence/sqlite-repositories.js";
 import type { MessageAcceptanceRepository } from "./persistence/sqlite-runtime-repository.js";
+import type { SqliteProviderConnectionRepository, WorkspaceProviderConnectionService } from "./persistence/sqlite-provider-connections.js";
 
 export type AppDependencies = {
   textProvider: TextProvider;
@@ -59,6 +60,9 @@ export type AppDependencies = {
   compatibilityExecutionStore?: RuntimeExecutionStore;
   conversationRepository?: ConversationRepository;
   messageAcceptanceRepository?: MessageAcceptanceRepository;
+  providerConnectionRepository?: SqliteProviderConnectionRepository;
+  providerConnectionService?: WorkspaceProviderConnectionService;
+  workspaceProviderResolver?: (workspaceId: string) => Promise<TextProvider>;
   identityRepository?: IdentityRepository;
   sessionRepository?: SessionRepository;
   workspaceRepository?: WorkspaceRepository;
@@ -391,6 +395,51 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     },
   );
 
+  app.get("/api/v1/providers", { preHandler: requireSession }, async () => ({
+    providers: dependencies.providerConnectionRepository?.listProviders() ?? [],
+    models: dependencies.providerConnectionRepository?.listModels() ?? [],
+  }));
+
+  app.get<{ Params: { workspaceId: string } }>(
+    "/api/v1/workspaces/:workspaceId/provider-connections",
+    { schema: { params: routeParamsSchema("workspaceId") }, preHandler: requireWorkspace },
+    async (request, reply) => {
+      const context = request.authorizationContext;
+      if (!context || request.params.workspaceId !== context.workspace.workspaceId) return sendProblem(reply, request.id, "WORKSPACE_ACCESS_DENIED", 404);
+      return { connections: dependencies.providerConnectionRepository?.list(context.workspace.workspaceId) ?? [] };
+    },
+  );
+
+  app.post<{ Params: { workspaceId: string }; Body: { providerKey: string; credentialReference: string } }>(
+    "/api/v1/workspaces/:workspaceId/provider-connections",
+    { schema: { params: routeParamsSchema("workspaceId"), body: { type: "object", additionalProperties: false, required: ["providerKey", "credentialReference"], properties: { providerKey: { type: "string", minLength: 1, maxLength: 64 }, credentialReference: { type: "string", minLength: 3, maxLength: 256 } } } }, preHandler: requireWorkspace },
+    async (request, reply) => {
+      const context=request.authorizationContext; if(!context || request.params.workspaceId!==context.workspace.workspaceId) return sendProblem(reply,request.id,"WORKSPACE_ACCESS_DENIED",404);
+      if(!dependencies.providerConnectionRepository) return sendProblem(reply,request.id,"INTERNAL_SERVER_ERROR",500);
+      return reply.status(201).send(dependencies.providerConnectionRepository.create(context.workspace.workspaceId,context.userId,request.body.providerKey,request.body.credentialReference));
+    },
+  );
+
+  app.post<{ Params: { workspaceId: string; connectionId: string } }>(
+    "/api/v1/workspaces/:workspaceId/provider-connections/:connectionId/test",
+    { preHandler: requireWorkspace }, async(request,reply)=>{ const c=request.authorizationContext; if(!c||request.params.workspaceId!==c.workspace.workspaceId) return sendProblem(reply,request.id,"WORKSPACE_ACCESS_DENIED",404); const result=await dependencies.providerConnectionService?.validate(c.workspace.workspaceId,request.params.connectionId,c.userId); return result ?? sendProblem(reply,request.id,"PROVIDER_CONNECTION_INVALID",404); },
+  );
+
+  app.post<{ Params: { workspaceId: string; connectionId: string }; Body: { modelKey: string } }>(
+    "/api/v1/workspaces/:workspaceId/provider-connections/:connectionId/select",
+    { schema: { body: { type:"object",additionalProperties:false,required:["modelKey"],properties:{modelKey:{type:"string",minLength:1,maxLength:128}} } }, preHandler: requireWorkspace }, async(request,reply)=>{ const c=request.authorizationContext; if(!c||request.params.workspaceId!==c.workspace.workspaceId) return sendProblem(reply,request.id,"WORKSPACE_ACCESS_DENIED",404); const selected=dependencies.providerConnectionRepository?.select(c.workspace.workspaceId,request.params.connectionId,request.body.modelKey,c.userId); return selected ? { selected: true } : sendProblem(reply,request.id,"PROVIDER_CONNECTION_INVALID",409); },
+  );
+
+  app.post<{ Params: { workspaceId: string; connectionId: string } }>(
+    "/api/v1/workspaces/:workspaceId/provider-connections/:connectionId/revoke",
+    { preHandler: requireWorkspace }, async(request,reply)=>{ const c=request.authorizationContext; if(!c||request.params.workspaceId!==c.workspace.workspaceId) return sendProblem(reply,request.id,"WORKSPACE_ACCESS_DENIED",404); const result=dependencies.providerConnectionRepository?.revoke(c.workspace.workspaceId,request.params.connectionId,c.userId); return result ?? sendProblem(reply,request.id,"PROVIDER_CONNECTION_INVALID",404); },
+  );
+
+  app.post<{ Params: { workspaceId: string; connectionId: string }; Body: { credentialReference: string } }>(
+    "/api/v1/workspaces/:workspaceId/provider-connections/:connectionId/rotate",
+    { schema: { body: { type:"object",additionalProperties:false,required:["credentialReference"],properties:{credentialReference:{type:"string",minLength:3,maxLength:256}} } }, preHandler: requireWorkspace }, async(request,reply)=>{ const c=request.authorizationContext; if(!c||request.params.workspaceId!==c.workspace.workspaceId) return sendProblem(reply,request.id,"WORKSPACE_ACCESS_DENIED",404); const result=dependencies.providerConnectionRepository?.rotateReference(c.workspace.workspaceId,request.params.connectionId,c.userId,request.body.credentialReference); return result ?? sendProblem(reply,request.id,"PROVIDER_CONNECTION_INVALID",404); },
+  );
+
   app.post<{
     Params: { workspaceId: string };
     Body: CreateConversationRequest;
@@ -442,6 +491,10 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       let accepted: RuntimeExecutionResponse;
       let shouldExecute = true;
 
+      if (dependencies.workspaceProviderResolver && !dependencies.providerConnectionRepository?.selected(context.workspace.workspaceId)) {
+        return sendProblem(reply, request.id, "PROVIDER_CONNECTION_REQUIRED", 409);
+      }
+
       if (dependencies.messageAcceptanceRepository) {
         const key = request.headers["idempotency-key"];
         if (typeof key !== "string" || !idempotencyKeyPattern.test(key)) {
@@ -478,7 +531,12 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
       if (shouldExecute) {
         setImmediate(() => {
-          void app.runtimeExecutor.execute(accepted.executionId, input).catch(() => undefined);
+          void (async () => {
+            const provider = dependencies.workspaceProviderResolver
+              ? await dependencies.workspaceProviderResolver(context.workspace.workspaceId)
+              : dependencies.textProvider;
+            await new RuntimeExecutor(app.executionStore, provider).execute(accepted.executionId, input);
+          })().catch(() => undefined);
         });
       }
 

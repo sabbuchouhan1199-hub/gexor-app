@@ -115,6 +115,18 @@ export const problemDefinitions: Record<ApiProblemCode, ProblemDefinition> = {
     detail: "The provider request could not be authenticated.",
     retryable: false,
   },
+  PROVIDER_CONNECTION_REQUIRED: {
+    type: "https://docs.gexor/errors/provider-connection-required",
+    title: "Provider connection required",
+    detail: "An active provider connection and model selection are required for this workspace.",
+    retryable: false,
+  },
+  PROVIDER_CONNECTION_INVALID: {
+    type: "https://docs.gexor/errors/provider-connection-invalid",
+    title: "Provider connection invalid",
+    detail: "The provider connection is unavailable or invalid.",
+    retryable: false,
+  },
   PROVIDER_REQUEST_REJECTED: {
     type: "https://docs.gexor/errors/provider-request-rejected",
     title: "Provider request rejected",

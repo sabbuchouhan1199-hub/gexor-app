@@ -14,6 +14,10 @@ import {
   SqliteMessageAcceptanceRepository,
   SqliteRuntimeExecutionStore,
 } from "./persistence/sqlite-runtime-repository.js";
+import {
+  SqliteProviderConnectionRepository,
+  WorkspaceProviderConnectionService,
+} from "./persistence/sqlite-provider-connections.js";
 import { createTextProvider } from "./providers/provider-factory.js";
 
 async function startServer(): Promise<void> {
@@ -22,6 +26,22 @@ async function startServer(): Promise<void> {
   database.migrate();
   const passwordHasher = new PasswordHasher();
   const executionStore = new SqliteRuntimeExecutionStore(database);
+  const providerConnections = new SqliteProviderConnectionRepository(database);
+  const workspaceProviders = new WorkspaceProviderConnectionService(
+    providerConnections,
+    async ({ providerKey, credentialReference }) =>
+      credentialReference === "local-env:configured" && providerKey === config.textProvider,
+    async ({ providerKey, modelId, credentialReference }) => {
+      if (credentialReference !== "local-env:configured" || providerKey !== config.textProvider) {
+        throw new Error("The protected credential reference cannot be resolved.");
+      }
+      return createTextProvider({
+        ...config,
+        textProvider: providerKey as typeof config.textProvider,
+        ...(providerKey === "ollama" ? { ollamaModel: modelId } : { geminiModel: modelId }),
+      });
+    },
+  );
   const app = buildApp({
     textProvider: createTextProvider(config),
     executionStore,
@@ -33,6 +53,9 @@ async function startServer(): Promise<void> {
     atomicRegistration: new SqliteRegistrationService(database, { passwordHasher }),
     conversationRepository: new SqliteConversationRepository(database),
     messageAcceptanceRepository: new SqliteMessageAcceptanceRepository(database, executionStore),
+    providerConnectionRepository: providerConnections,
+    providerConnectionService: workspaceProviders,
+    workspaceProviderResolver: (workspaceId) => workspaceProviders.providerForWorkspace(workspaceId),
   });
   app.addHook("onClose", async () => database.close());
 

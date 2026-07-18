@@ -98,6 +98,8 @@ export type ApiProblemCode =
   | "IDEMPOTENCY_CONFLICT"
   | "INTERNAL_SERVER_ERROR"
   | "PROVIDER_AUTHENTICATION_FAILED"
+  | "PROVIDER_CONNECTION_REQUIRED"
+  | "PROVIDER_CONNECTION_INVALID"
   | "PROVIDER_REQUEST_REJECTED"
   | "PROVIDER_MODEL_NOT_FOUND"
   | "PROVIDER_RATE_LIMITED"
@@ -151,6 +153,14 @@ export type RuntimeExecutionSnapshot = {
   response?: { text: string };
   failure?: RuntimeExecutionFailure;
 };
+
+export type ProviderCatalogueEntry = { providerKey: string; displayName: string; status: "active" | "disabled" };
+export type ModelCatalogueEntry = { modelKey: string; providerKey: string; providerModelId: string; displayName: string; status: "active" | "disabled" };
+export type ProviderConnectionStatus = "pending_validation" | "active" | "invalid" | "revoked";
+export type WorkspaceProviderConnection = { connectionId: string; workspaceId: string; providerKey: string; status: ProviderConnectionStatus; createdAt: string; updatedAt: string; validatedAt?: string; revokedAt?: string };
+export type CreateProviderConnectionRequest = { providerKey: string; credentialReference: string };
+export type SelectProviderConnectionRequest = { modelKey: string };
+export type RotateProviderCredentialReferenceRequest = { credentialReference: string };
 
 export type CreateConversationRequest = {
   title: string;
