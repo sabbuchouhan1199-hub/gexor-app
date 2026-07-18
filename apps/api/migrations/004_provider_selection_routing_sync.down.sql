@@ -1,0 +1,2 @@
+-- Backfilled provider selections are not safely distinguishable from user selections after later writes.
+-- Rollback intentionally leaves data intact and only removes the migration marker.

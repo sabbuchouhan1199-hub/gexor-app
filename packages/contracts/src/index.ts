@@ -236,10 +236,13 @@ export type CancellationResponse = {
 export type ProviderHealthState = "unknown" | "healthy" | "degraded" | "unhealthy" | "disabled";
 export type ProviderRoutingStatus = {
   connectionId: string; priority: number; enabled: boolean; isDefault: boolean;
+  modelKey?: string;
   healthState: ProviderHealthState; lastCheckedAt?: string; safeFailureCode?: string;
   safeFailureMessage?: string; latencyMs?: number; consecutiveFailures: number;
 };
-export type UpdateProviderRoutingRequest = { priority?: number; enabled?: boolean; isDefault?: boolean };
+export type WorkspaceProviderSelection = { connectionId: string; modelKey: string; providerModelId: string };
+export type WorkspaceProviderConnectionsResponse = { connections: WorkspaceProviderConnection[]; routing: ProviderRoutingStatus[]; selected?: WorkspaceProviderSelection };
+export type UpdateProviderRoutingRequest = { priority?: number; enabled?: boolean; isDefault?: boolean; modelKey?: string };
 
 export type UsageClassification = "measured" | "estimated" | "unavailable";
 export type UsageDashboard = {

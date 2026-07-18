@@ -527,7 +527,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     async (request, reply) => {
       const context = request.authorizationContext;
       if (!context || request.params.workspaceId !== context.workspace.workspaceId) return sendProblem(reply, request.id, "WORKSPACE_ACCESS_DENIED", 404);
-      return { connections: dependencies.providerConnectionRepository?.list(context.workspace.workspaceId) ?? [], routing: dependencies.providerConnectionRepository?.routing(context.workspace.workspaceId) ?? [] };
+      return { connections: dependencies.providerConnectionRepository?.list(context.workspace.workspaceId) ?? [], routing: dependencies.providerConnectionRepository?.routing(context.workspace.workspaceId) ?? [], selected: dependencies.providerConnectionRepository?.selectedSummary(context.workspace.workspaceId) };
     },
   );
 
@@ -541,11 +541,11 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     },
   );
 
-  app.patch<{ Params: { workspaceId: string; connectionId: string }; Body: { priority?: number; enabled?: boolean; isDefault?: boolean } }>(
+  app.patch<{ Params: { workspaceId: string; connectionId: string }; Body: { priority?: number; enabled?: boolean; isDefault?: boolean; modelKey?: string } }>(
     "/api/v1/workspaces/:workspaceId/provider-connections/:connectionId/routing",
-    { schema: { params: { type:"object",additionalProperties:false,required:["workspaceId","connectionId"],properties:{workspaceId:{type:"string"},connectionId:{type:"string"}} }, body: { type:"object",additionalProperties:false,minProperties:1,properties:{priority:{type:"integer",minimum:0,maximum:10000},enabled:{type:"boolean"},isDefault:{type:"boolean"}} } }, preHandler: requireWorkspace },
+    { schema: { params: { type:"object",additionalProperties:false,required:["workspaceId","connectionId"],properties:{workspaceId:{type:"string"},connectionId:{type:"string"}} }, body: { type:"object",additionalProperties:false,minProperties:1,properties:{priority:{type:"integer",minimum:0,maximum:10000},enabled:{type:"boolean"},isDefault:{type:"boolean"},modelKey:{type:"string",minLength:1,maxLength:128}} } }, preHandler: requireWorkspace },
     async(request,reply)=>{ const c=request.authorizationContext; if(!c||request.params.workspaceId!==c.workspace.workspaceId) return sendProblem(reply,request.id,"WORKSPACE_ACCESS_DENIED",404);
-      const result=dependencies.providerConnectionRepository?.configureRouting(c.workspace.workspaceId,request.params.connectionId,request.body);
+      const result=dependencies.providerConnectionRepository?.configureRouting(c.workspace.workspaceId,request.params.connectionId,request.body,c.userId);
       return result??sendProblem(reply,request.id,"PROVIDER_CONNECTION_INVALID",404); },
   );
 
