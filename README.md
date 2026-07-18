@@ -42,7 +42,7 @@ validates it and sends it through the same in-memory runtime executor used by th
 canonical API. The compatibility route waits for a non-streaming result. Canonical
 message submission returns an `accepted` execution and schedules preparation and
 provider dispatch; execution reads expose provider-neutral progress and terminal
-outcomes. There is no durable pipeline, database, queue, worker, or streaming relay.
+outcomes. Canonical identity, session, workspace, conversation, message, execution, idempotency, and outbox state now uses a migrated SQLite database. Provider dispatch remains in-process and non-streaming; there is no queue or worker.
 
 ## Usable authentication and personal workspace
 
@@ -50,7 +50,7 @@ The versioned API now exposes register, login, logout, and current-user endpoint
 
 Canonical message submission and execution reads require a valid bearer session plus an explicit server-authorized `X-Workspace-Id`. Membership is revalidated on every protected request, and cross-workspace execution access fails closed. The temporary `/chat` and `/mock/chat` routes remain unauthenticated development compatibility behavior outside the canonical product surface.
 
-Identity, session, workspace, membership, message, and execution state is still process-local and disappears on restart. There is no database, durable revocation, production rate limiting, email verification, recovery, MFA/passkeys, browser authentication UI, cookie authentication, or production-readiness claim. Conversation ownership is not durable until the persistence stage.
+Identity, session, workspace, membership, conversation, message, execution, idempotency, and outbox state is persisted in SQLite and survives restart. Registration and canonical message acceptance are transactional, session revocation is durable, and equivalent idempotent message retries return the original execution. There is no distributed database deployment, durable outbox publisher, production rate limiting, email verification, recovery, MFA/passkeys, browser authentication UI, cookie authentication, or production-readiness claim. Conversation ownership is not durable until the persistence stage.
 
 ## Repository structure
 
@@ -127,19 +127,13 @@ dependency.
 
 These routes remain outside the canonical resource lifecycle. All API responses now
 carry a safe request ID, and failures use the shared provider-neutral problem
-contract. The versioned endpoints provide transient message and execution identities
-with 202
-acceptance and asynchronous in-process provider execution, but no durable
-idempotency, SSE stream, cancellation endpoint, retry, or regeneration.
+contract. The versioned endpoints provide durable message and execution identities with 202 acceptance, asynchronous in-process provider execution, and durable idempotency, SSE stream, cancellation endpoint, retry, or regeneration.
 
 ## Known limitations
 
-- authentication and personal-workspace APIs are process-local; there is no durable
-  session revocation, browser authentication UI, email verification, recovery, MFA,
+- authentication and personal-workspace APIs are database-backed; there is no browser authentication UI, email verification, recovery, MFA,
   production throttling, or production authentication assurance;
-- no database, migrations, projects, persistent conversations or messages, or
-  durable runtime state; the versioned resources are process-local and lost on
-  restart;
+- SQLite and ordered migrations provide durable single-node storage, but there is no high-availability database topology, backup automation, or external outbox publisher;
 - non-streaming responses only;
 - no intent classification, prompt enhancement, context retrieval, context
   snapshot, prompt snapshot, token budgeting, structured memory, memory candidate,
@@ -193,8 +187,7 @@ requirement or production acceptance criteria.
 Canonical shared API problems, request correlation, and the in-memory runtime
 execution foundation is now implemented. The remaining dependency order is:
 
-1. Persistent domain repositories and transactional message acceptance
-2. Workspace-scoped provider connections and protected credential references
+1. Workspace-scoped provider connections and protected credential references
 4. SSE streaming, cancellation, and reconnect
 5. Context, prompt, and token-budget pipeline
 6. Usage, cost, quota, and routing transparency

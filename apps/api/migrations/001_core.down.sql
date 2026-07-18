@@ -1,0 +1,10 @@
+DROP TABLE IF EXISTS outbox_events;
+DROP TABLE IF EXISTS idempotency_records;
+DROP TABLE IF EXISTS runtime_executions;
+DROP TABLE IF EXISTS messages;
+DROP TABLE IF EXISTS conversations;
+DROP TABLE IF EXISTS memberships;
+DROP TABLE IF EXISTS workspaces;
+DROP TABLE IF EXISTS sessions;
+DROP TABLE IF EXISTS authentication_identities;
+DROP TABLE IF EXISTS accounts;

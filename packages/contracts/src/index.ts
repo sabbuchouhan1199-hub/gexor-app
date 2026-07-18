@@ -93,6 +93,9 @@ export type ApiProblemCode =
   | "VALIDATION_ERROR"
   | "ROUTE_NOT_FOUND"
   | "EXECUTION_NOT_FOUND"
+  | "CONVERSATION_NOT_FOUND"
+  | "IDEMPOTENCY_KEY_REQUIRED"
+  | "IDEMPOTENCY_CONFLICT"
   | "INTERNAL_SERVER_ERROR"
   | "PROVIDER_AUTHENTICATION_FAILED"
   | "PROVIDER_REQUEST_REJECTED"
@@ -147,6 +150,20 @@ export type RuntimeExecutionSnapshot = {
   model?: string;
   response?: { text: string };
   failure?: RuntimeExecutionFailure;
+};
+
+export type CreateConversationRequest = {
+  title: string;
+};
+
+export type ConversationSummary = {
+  conversationId: string;
+  workspaceId: string;
+  title: string;
+  status: "active" | "archived";
+  version: number;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type MessageSubmissionRequest = {

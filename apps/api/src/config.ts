@@ -12,6 +12,7 @@ export type ApiConfig = {
   geminiApiKey?: string;
   geminiModel: string;
   geminiTimeoutMs: number;
+  databasePath: string;
 };
 
 type Environment = Record<string, string | undefined>;
@@ -173,5 +174,10 @@ export function loadApiConfig(
     geminiApiKey: readOptionalValue(environment.GEMINI_API_KEY),
     geminiModel: readGeminiModel(environment.GEMINI_MODEL),
     geminiTimeoutMs: readGeminiTimeoutMs(environment.GEMINI_TIMEOUT_MS),
+    databasePath: readRequiredValue(
+      environment.GEXOR_DATABASE_PATH,
+      ".data/gexor.sqlite",
+      "GEXOR_DATABASE_PATH",
+    ),
   };
 }

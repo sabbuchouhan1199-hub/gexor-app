@@ -3,11 +3,11 @@ import type { RuntimeExecutionResponse } from "@gexor/contracts";
 import { toSafeRuntimeFailure } from "./problem-details.js";
 import { ProviderError } from "./providers/errors.js";
 import type { TextProvider } from "./providers/provider.js";
-import { InMemoryRuntimeExecutionStore } from "./runtime-execution-store.js";
+import type { RuntimeExecutionStore } from "./runtime-execution-store.js";
 
 export class RuntimeExecutor {
   constructor(
-    private readonly store: InMemoryRuntimeExecutionStore,
+    private readonly store: RuntimeExecutionStore,
     private readonly textProvider: TextProvider,
   ) {}
 

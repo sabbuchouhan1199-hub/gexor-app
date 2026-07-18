@@ -18,6 +18,7 @@ test("configuration uses safe local defaults", () => {
       geminiApiKey: undefined,
       geminiModel: "gemini-3.1-flash-lite",
       geminiTimeoutMs: 120000,
+      databasePath: ".data/gexor.sqlite",
     },
   );
 });
@@ -45,6 +46,7 @@ test("configuration accepts valid environment values", () => {
       geminiApiKey: "test-placeholder-key",
       geminiModel: "gemini-test-model",
       geminiTimeoutMs: 45000,
+      databasePath: ".data/gexor.sqlite",
     },
   );
 });

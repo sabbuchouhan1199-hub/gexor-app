@@ -6,11 +6,16 @@ import type { IdentityService } from "./identity-service.js";
 import type { SessionRepository } from "./session-repository.js";
 import type { WorkspaceRepository } from "./workspace-repository.js";
 
+export type AtomicRegistrationService = {
+  register(input: RegisterRequest): Promise<AuthenticationResponse>;
+};
+
 export type AuthenticationServiceOptions = {
   identities: IdentityRepository;
   identityService: IdentityService;
   sessions: SessionRepository;
   workspaces: WorkspaceRepository;
+  atomicRegistration?: AtomicRegistrationService;
 };
 
 export class AuthenticationService {
@@ -18,15 +23,18 @@ export class AuthenticationService {
   readonly #identityService: IdentityService;
   readonly #sessions: SessionRepository;
   readonly #workspaces: WorkspaceRepository;
+  readonly #atomicRegistration?: AtomicRegistrationService;
 
   constructor(options: AuthenticationServiceOptions) {
     this.#identities = options.identities;
     this.#identityService = options.identityService;
     this.#sessions = options.sessions;
     this.#workspaces = options.workspaces;
+    this.#atomicRegistration = options.atomicRegistration;
   }
 
   async register(input: RegisterRequest): Promise<AuthenticationResponse> {
+    if (this.#atomicRegistration) return this.#atomicRegistration.register(input);
     const user = await this.#identityService.createIdentity(input);
     try {
       const authorization = await this.#workspaces.provisionPersonalWorkspace(user.userId, user.displayName);

@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import Fastify, {
   type FastifyError,
@@ -13,6 +13,8 @@ import type {
   AuthenticationResponse,
   ChatRequest,
   ChatResponse,
+  ConversationSummary,
+  CreateConversationRequest,
   CurrentUserResponse,
   LoginRequest,
   MessageSubmissionRequest,
@@ -44,16 +46,25 @@ import { problemDefinitions } from "./problem-details.js";
 import type { TextProvider } from "./providers/provider.js";
 import { ProviderError } from "./providers/errors.js";
 import { RuntimeExecutor } from "./runtime-executor.js";
-import { InMemoryRuntimeExecutionStore } from "./runtime-execution-store.js";
+import {
+  InMemoryRuntimeExecutionStore,
+  type RuntimeExecutionStore,
+} from "./runtime-execution-store.js";
+import type { ConversationRepository } from "./persistence/sqlite-repositories.js";
+import type { MessageAcceptanceRepository } from "./persistence/sqlite-runtime-repository.js";
 
 export type AppDependencies = {
   textProvider: TextProvider;
-  executionStore?: InMemoryRuntimeExecutionStore;
+  executionStore?: RuntimeExecutionStore;
+  compatibilityExecutionStore?: RuntimeExecutionStore;
+  conversationRepository?: ConversationRepository;
+  messageAcceptanceRepository?: MessageAcceptanceRepository;
   identityRepository?: IdentityRepository;
   sessionRepository?: SessionRepository;
   workspaceRepository?: WorkspaceRepository;
   passwordHasher?: PasswordHashingService;
   syntheticPasswordHash?: string;
+  atomicRegistration?: import("./auth/authentication-service.js").AtomicRegistrationService;
 };
 
 type AuthorizationContext = WorkspaceAuthorization & {
@@ -65,7 +76,7 @@ type AuthorizationContext = WorkspaceAuthorization & {
 declare module "fastify" {
   interface FastifyInstance {
     textProvider: TextProvider;
-    executionStore: InMemoryRuntimeExecutionStore;
+    executionStore: RuntimeExecutionStore;
     runtimeExecutor: RuntimeExecutor;
     identityRepository: IdentityRepository;
     sessionRepository: SessionRepository;
@@ -81,6 +92,7 @@ const problemContentType = "application/problem+json";
 const requestIdPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const bearerPattern = /^Bearer ([A-Za-z0-9_-]{20,512})$/;
 const workspaceIdPattern = /^[A-Za-z0-9_-]{1,128}$/;
+const idempotencyKeyPattern = /^[A-Za-z0-9._:-]{1,128}$/;
 const syntheticPasswordHash = [
   "scrypt",
   "v1",
@@ -116,6 +128,15 @@ const loginRequestSchema = {
   properties: {
     email: { type: "string", minLength: 1, maxLength: 254 },
     password: { type: "string", minLength: 1, maxLength: 256 },
+  },
+} as const;
+
+const createConversationSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["title"],
+  properties: {
+    title: { type: "string", minLength: 1, maxLength: 200, pattern: "\\S" },
   },
 } as const;
 
@@ -203,6 +224,11 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   });
 
   const executionStore = dependencies.executionStore ?? new InMemoryRuntimeExecutionStore();
+  const compatibilityExecutionStore = dependencies.compatibilityExecutionStore ?? executionStore;
+  const compatibilityRuntimeExecutor = new RuntimeExecutor(
+    compatibilityExecutionStore,
+    dependencies.textProvider,
+  );
   const identities = dependencies.identityRepository ?? new InMemoryIdentityRepository();
   const sessions = dependencies.sessionRepository ?? new InMemorySessionRepository();
   const workspaces = dependencies.workspaceRepository ?? new InMemoryWorkspaceRepository();
@@ -216,6 +242,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     identityService,
     sessions,
     workspaces,
+    ...(dependencies.atomicRegistration ? { atomicRegistration: dependencies.atomicRegistration } : {}),
   });
 
   app.decorate("textProvider", dependencies.textProvider);
@@ -352,15 +379,46 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     "/chat",
     { schema: { body: chatRequestSchema } },
     async (request) => {
-      const accepted = app.runtimeExecutor.accept({
+      const accepted = compatibilityRuntimeExecutor.accept({
         conversationId: "conv_compatibility",
         requestId: request.id,
       });
-      const completed = await app.runtimeExecutor.execute(
+      const completed = await compatibilityRuntimeExecutor.execute(
         accepted.executionId,
         request.body.message.trim(),
       );
       return { reply: completed.response!.text };
+    },
+  );
+
+  app.post<{
+    Params: { workspaceId: string };
+    Body: CreateConversationRequest;
+    Reply: ConversationSummary | ApiProblem;
+  }>(
+    "/api/v1/workspaces/:workspaceId/conversations",
+    {
+      schema: {
+        params: routeParamsSchema("workspaceId"),
+        body: createConversationSchema,
+      },
+      preHandler: requireWorkspace,
+    },
+    async (request, reply) => {
+      const context = request.authorizationContext;
+      if (!context) return reply;
+      if (request.params.workspaceId !== context.workspace.workspaceId) {
+        return sendProblem(reply, request.id, "WORKSPACE_ACCESS_DENIED", 404);
+      }
+      if (!dependencies.conversationRepository) {
+        return sendProblem(reply, request.id, "INTERNAL_SERVER_ERROR", 500);
+      }
+      const conversation = await dependencies.conversationRepository.create(
+        context.workspace.workspaceId,
+        context.userId,
+        request.body.title,
+      );
+      return reply.status(201).send(conversation);
     },
   );
 
@@ -380,17 +438,49 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     async (request, reply) => {
       const context = request.authorizationContext;
       if (!context) return reply;
-      const accepted = app.runtimeExecutor.accept({
-        conversationId: request.params.conversationId,
-        requestId: request.id,
-        workspaceId: context.workspace.workspaceId,
-        requestedBy: context.userId,
-      });
       const input = request.body.content[0].text.trim();
+      let accepted: RuntimeExecutionResponse;
+      let shouldExecute = true;
 
-      setImmediate(() => {
-        void app.runtimeExecutor.execute(accepted.executionId, input).catch(() => undefined);
-      });
+      if (dependencies.messageAcceptanceRepository) {
+        const key = request.headers["idempotency-key"];
+        if (typeof key !== "string" || !idempotencyKeyPattern.test(key)) {
+          return sendProblem(reply, request.id, "IDEMPOTENCY_KEY_REQUIRED", 400);
+        }
+        const requestHash = createHash("sha256")
+          .update(JSON.stringify(request.body), "utf8")
+          .digest("hex");
+        const result = await dependencies.messageAcceptanceRepository.accept({
+          actorUserId: context.userId,
+          workspaceId: context.workspace.workspaceId,
+          conversationId: request.params.conversationId,
+          requestId: request.id,
+          idempotencyKey: key,
+          requestHash,
+          text: input,
+        });
+        if (result.outcome === "conflict") {
+          return sendProblem(reply, request.id, "IDEMPOTENCY_CONFLICT", 409);
+        }
+        if (result.outcome === "conversation_not_found") {
+          return sendProblem(reply, request.id, "CONVERSATION_NOT_FOUND", 404);
+        }
+        accepted = result.execution;
+        shouldExecute = result.outcome === "accepted";
+      } else {
+        accepted = app.runtimeExecutor.accept({
+          conversationId: request.params.conversationId,
+          requestId: request.id,
+          workspaceId: context.workspace.workspaceId,
+          requestedBy: context.userId,
+        });
+      }
+
+      if (shouldExecute) {
+        setImmediate(() => {
+          void app.runtimeExecutor.execute(accepted.executionId, input).catch(() => undefined);
+        });
+      }
 
       return reply.status(202).send({
         messageId: accepted.messageId,

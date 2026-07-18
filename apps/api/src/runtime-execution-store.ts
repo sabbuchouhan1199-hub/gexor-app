@@ -23,7 +23,7 @@ const transitions: Readonly<Record<RuntimeExecutionState, readonly RuntimeExecut
   cancelled: [],
 };
 
-type TransitionOutcome = {
+export type TransitionOutcome = {
   provider?: string;
   model?: string;
   response?: { text: string };
@@ -37,7 +37,22 @@ export class InvalidRuntimeTransitionError extends Error {
   }
 }
 
-export class InMemoryRuntimeExecutionStore {
+export interface RuntimeExecutionStore {
+  create(options: {
+    conversationId: string;
+    requestId: string;
+    workspaceId?: string;
+    requestedBy?: string;
+  }): RuntimeExecutionResponse;
+  get(executionId: string): RuntimeExecutionResponse | undefined;
+  transition(
+    executionId: string,
+    nextState: RuntimeExecutionState,
+    outcome?: TransitionOutcome,
+  ): RuntimeExecutionResponse | undefined;
+}
+
+export class InMemoryRuntimeExecutionStore implements RuntimeExecutionStore {
   readonly #executions = new Map<string, RuntimeExecutionResponse>();
   readonly #now: () => Date;
   readonly #createId: () => string;

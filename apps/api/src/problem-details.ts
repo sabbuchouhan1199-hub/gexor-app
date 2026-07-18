@@ -79,6 +79,24 @@ export const problemDefinitions: Record<ApiProblemCode, ProblemDefinition> = {
     detail: "The requested route was not found.",
     retryable: false,
   },
+  CONVERSATION_NOT_FOUND: {
+    type: "https://docs.gexor/errors/conversation-not-found",
+    title: "Conversation not found",
+    detail: "The requested conversation was not found.",
+    retryable: false,
+  },
+  IDEMPOTENCY_KEY_REQUIRED: {
+    type: "https://docs.gexor/errors/idempotency-key-required",
+    title: "Idempotency key required",
+    detail: "A valid Idempotency-Key header is required for this operation.",
+    retryable: false,
+  },
+  IDEMPOTENCY_CONFLICT: {
+    type: "https://docs.gexor/errors/idempotency-conflict",
+    title: "Idempotency conflict",
+    detail: "The idempotency key was already used for a different request.",
+    retryable: false,
+  },
   EXECUTION_NOT_FOUND: {
     type: "https://docs.gexor/errors/execution-not-found",
     title: "Execution not found",
