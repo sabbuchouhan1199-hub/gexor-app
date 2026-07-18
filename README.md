@@ -2,16 +2,11 @@
 
 Gexor is a provider-independent AI runtime platform intended to preserve a user's
 workspace, context, memory, knowledge, and continuity independently of an AI
-provider. This repository currently contains a Phase 1 foundation and a provider-
-backed vertical slice. It is not the complete documented MVP and is not production
-ready.
+provider. This repository contains Gexor Version 1: a usable, phone-first authenticated personal workspace backed by the canonical durable API. It remains a single-node local application, not the complete documented MVP or a production deployment.
 
 ## Current implementation stage
 
-The application proves a narrow browser → Vite → Fastify → configured provider
-request path. It includes strict TypeScript workspaces, deterministic tests,
-provider adapters, local configuration, recoverable browser request handling, and
-a development-installable PWA shell. It does not yet implement the complete canonical Gexor domain or public API.
+The application now provides browser registration, login, logout, durable session restoration, conversation navigation and history, canonical idempotent message execution, workspace provider/model setup, safe retry behavior, and a responsive installable PWA interface. SQLite preserves identities, sessions, workspaces, provider connections, conversations, messages, executions, idempotency, and outbox evidence across restart.
 
 ## Implemented vertical slice
 
@@ -37,12 +32,7 @@ a development-installable PWA shell. It does not yet implement the complete cano
 
 ## Current architecture
 
-The browser posts a minimal shared ChatRequest to Vite's development proxy. Fastify
-validates it and sends it through the same in-memory runtime executor used by the
-canonical API. The compatibility route waits for a non-streaming result. Canonical
-message submission returns an `accepted` execution and schedules preparation and
-provider dispatch; execution reads expose provider-neutral progress and terminal
-outcomes. Canonical identity, session, workspace, conversation, message, execution, idempotency, and outbox state now uses a migrated SQLite database. Provider dispatch remains in-process and non-streaming; there is no queue or worker.
+The browser uses the versioned authenticated API through Vite's development proxy. Fastify authorizes the session and workspace, accepts each message transactionally into SQLite, then schedules provider dispatch. Execution reads and conversation history expose durable provider-neutral progress and terminal outcomes. The compatibility routes remain separate from the normal browser journey. Canonical identity, session, workspace, conversation, message, execution, idempotency, and outbox state now uses a migrated SQLite database. Provider dispatch remains in-process and non-streaming; there is no queue or worker.
 
 ## Usable authentication and personal workspace
 
@@ -137,7 +127,7 @@ contract. The versioned endpoints provide durable message and execution identiti
 
 ## Known limitations
 
-- authentication and personal-workspace APIs are database-backed; there is no browser authentication UI, email verification, recovery, MFA,
+- authentication and personal-workspace APIs and browser flows are database-backed; there is no email verification, recovery, MFA,
   production throttling, or production authentication assurance;
 - SQLite and ordered migrations provide durable single-node storage, but there is no high-availability database topology, backup automation, or external outbox publisher;
 - non-streaming responses only;

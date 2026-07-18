@@ -11,6 +11,7 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     proxy: {
+      "/api": { target: apiTarget, changeOrigin: true },
       "/mock": {
         target: apiTarget,
         changeOrigin: true,

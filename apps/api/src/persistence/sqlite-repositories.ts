@@ -4,6 +4,9 @@ import type {
   AuthenticatedUser,
   AuthSessionSummary,
   ConversationSummary,
+  ConversationMessage,
+  RuntimeExecutionFailure,
+  RuntimeExecutionSnapshot,
   PersonalWorkspace,
   UserStatus,
   WorkspaceMembership,
@@ -350,6 +353,8 @@ export class SqliteWorkspaceRepository implements WorkspaceRepository {
 export type ConversationRepository = {
   create(workspaceId: string, userId: string, title: string): Promise<ConversationSummary>;
   find(workspaceId: string, conversationId: string): Promise<ConversationSummary | undefined>;
+  list(workspaceId: string): Promise<ConversationSummary[]>;
+  messages(workspaceId: string, conversationId: string): Promise<ConversationMessage[] | undefined>;
 };
 
 export class SqliteConversationRepository implements ConversationRepository {
@@ -392,5 +397,22 @@ export class SqliteConversationRepository implements ConversationRepository {
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     } : undefined;
+  }
+
+  async list(workspaceId: string): Promise<ConversationSummary[]> {
+    const rows = this.#database.prepare("SELECT id FROM conversations WHERE workspace_id = ? AND status = \x27active\x27 ORDER BY updated_at DESC, created_at DESC").all(workspaceId) as Array<{ id: string }>;
+    return Promise.all(rows.map(async ({ id }) => (await this.find(workspaceId, id))!));
+  }
+
+  async messages(workspaceId: string, conversationId: string): Promise<ConversationMessage[] | undefined> {
+    if (!await this.find(workspaceId, conversationId)) return undefined;
+    const rows = this.#database.prepare(`SELECT m.id, m.conversation_id, m.content_text, m.state, m.created_at, e.id execution_id, e.request_id, e.state execution_state, e.updated_at execution_updated_at, e.started_at, e.completed_at, e.provider, e.model, e.response_text, e.failure_code, e.failure_detail, e.failure_retryable, e.requested_by FROM messages m LEFT JOIN runtime_executions e ON e.message_id=m.id WHERE m.workspace_id=? AND m.conversation_id=? ORDER BY m.created_at, m.id`).all(workspaceId, conversationId) as Array<Record<string, unknown>>;
+    const messages: ConversationMessage[] = [];
+    for (const row of rows) {
+      const execution: RuntimeExecutionSnapshot | undefined = row.execution_id ? { executionId:String(row.execution_id), messageId:String(row.id), conversationId:String(row.conversation_id), requestId:String(row.request_id), workspaceId, requestedBy:String(row.requested_by), state:row.execution_state as RuntimeExecutionSnapshot["state"], createdAt:String(row.created_at), updatedAt:String(row.execution_updated_at), ...(row.started_at?{startedAt:String(row.started_at)}:{}), ...(row.completed_at?{completedAt:String(row.completed_at)}:{}), ...(row.provider?{provider:String(row.provider)}:{}), ...(row.model?{model:String(row.model)}:{}), ...(row.response_text?{response:{text:String(row.response_text)}}:{}), ...(row.failure_code?{failure:{code:row.failure_code as RuntimeExecutionFailure["code"],detail:String(row.failure_detail),retryable:Boolean(row.failure_retryable)}}:{}) } : undefined;
+      messages.push({messageId:String(row.id),conversationId:String(row.conversation_id),role:"user",text:String(row.content_text),state:row.state as ConversationMessage["state"],createdAt:String(row.created_at),...(execution?{execution}:{})});
+      if(execution?.response?.text) messages.push({messageId:`:assistant`,conversationId:String(row.conversation_id),role:"assistant",text:execution.response.text,state:"complete",createdAt:execution.completedAt??execution.updatedAt});
+    }
+    return messages;
   }
 }

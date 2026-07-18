@@ -176,6 +176,14 @@ export type ConversationSummary = {
   updatedAt: string;
 };
 
+export type ConversationMessage = {
+  messageId: string; conversationId: string; role: "user" | "assistant"; text: string;
+  state: "accepted" | "complete" | "failed" | "cancelled"; createdAt: string;
+  execution?: RuntimeExecutionSnapshot;
+};
+export type ConversationListResponse = { conversations: ConversationSummary[] };
+export type ConversationMessagesResponse = { messages: ConversationMessage[] };
+
 export type MessageSubmissionRequest = {
   content: [{ type: "text"; text: string }];
 };

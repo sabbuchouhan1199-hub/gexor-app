@@ -14,6 +14,8 @@ import type {
   ChatRequest,
   ChatResponse,
   ConversationSummary,
+  ConversationListResponse,
+  ConversationMessagesResponse,
   CreateConversationRequest,
   CurrentUserResponse,
   LoginRequest,
@@ -470,6 +472,10 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       return reply.status(201).send(conversation);
     },
   );
+
+  app.get<{ Params: { workspaceId: string }; Reply: ConversationListResponse | ApiProblem }>("/api/v1/workspaces/:workspaceId/conversations", { schema: { params: routeParamsSchema("workspaceId") }, preHandler: requireWorkspace }, async (request, reply) => { const c=request.authorizationContext; if(!c||request.params.workspaceId!==c.workspace.workspaceId) return sendProblem(reply,request.id,"WORKSPACE_ACCESS_DENIED",404); if(!dependencies.conversationRepository) return sendProblem(reply,request.id,"INTERNAL_SERVER_ERROR",500); return {conversations:await dependencies.conversationRepository.list(c.workspace.workspaceId)}; });
+
+  app.get<{ Params: { conversationId: string }; Reply: ConversationMessagesResponse | ApiProblem }>("/api/v1/conversations/:conversationId/messages", { schema: { params: routeParamsSchema("conversationId") }, preHandler: requireWorkspace }, async (request, reply) => { const c=request.authorizationContext; if(!c) return reply; const messages=await dependencies.conversationRepository?.messages(c.workspace.workspaceId,request.params.conversationId); return messages?{messages}:sendProblem(reply,request.id,"CONVERSATION_NOT_FOUND",404); });
 
   app.post<{
     Params: { conversationId: string };
