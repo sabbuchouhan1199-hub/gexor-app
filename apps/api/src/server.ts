@@ -39,10 +39,17 @@ async function startServer(): Promise<void> {
       if (credentialReference !== "local-env:configured" || providerKey !== config.textProvider) {
         throw new Error("The protected credential reference cannot be resolved.");
       }
+      const modelOverride = (() => {
+        switch (providerKey) {
+          case "ollama": return { ollamaModel: modelId };
+          case "gemini": return { geminiModel: modelId };
+          case "llama-cpp": return { llamaCppModel: modelId };
+        }
+      })();
       return createTextProvider({
         ...config,
         textProvider: providerKey as typeof config.textProvider,
-        ...(providerKey === "ollama" ? { ollamaModel: modelId } : { geminiModel: modelId }),
+        ...modelOverride,
       });
     },
   );

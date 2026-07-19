@@ -1,6 +1,7 @@
 export type TextProviderName =
   | "ollama"
-  | "gemini";
+  | "gemini"
+  | "llama-cpp";
 
 export type ApiConfig = {
   host: string;
@@ -12,6 +13,9 @@ export type ApiConfig = {
   geminiApiKey?: string;
   geminiModel: string;
   geminiTimeoutMs: number;
+  llamaCppBaseUrl: string;
+  llamaCppModel: string;
+  llamaCppTimeoutMs: number;
   databasePath: string;
   cookieSecure: boolean;
   allowedOrigin?: string;
@@ -73,10 +77,11 @@ function readTextProvider(
 
   if (
     provider !== "ollama" &&
-    provider !== "gemini"
+    provider !== "gemini" &&
+    provider !== "llama-cpp"
   ) {
     throw new Error(
-      'TEXT_PROVIDER must be either "ollama" or "gemini".',
+      'TEXT_PROVIDER must be "ollama", "gemini", or "llama-cpp".',
     );
   }
 
@@ -153,6 +158,18 @@ function readGeminiTimeoutMs(value: string | undefined): number {
   );
 }
 
+function readLlamaCppBaseUrl(value: string | undefined): string {
+  return readRequiredValue(value, "http://127.0.0.1:8080/v1", "LLAMA_CPP_BASE_URL");
+}
+
+function readLlamaCppModel(value: string | undefined): string {
+  return readRequiredValue(value, "qwen-local", "LLAMA_CPP_MODEL");
+}
+
+function readLlamaCppTimeoutMs(value: string | undefined): number {
+  return readPositiveWholeNumber(value, "120000", "LLAMA_CPP_TIMEOUT_MS");
+}
+
 export function loadApiConfig(
   environment: Environment = process.env,
 ): ApiConfig {
@@ -180,6 +197,9 @@ export function loadApiConfig(
     geminiApiKey: readOptionalValue(environment.GEMINI_API_KEY),
     geminiModel: readGeminiModel(environment.GEMINI_MODEL),
     geminiTimeoutMs: readGeminiTimeoutMs(environment.GEMINI_TIMEOUT_MS),
+    llamaCppBaseUrl: readLlamaCppBaseUrl(environment.LLAMA_CPP_BASE_URL),
+    llamaCppModel: readLlamaCppModel(environment.LLAMA_CPP_MODEL),
+    llamaCppTimeoutMs: readLlamaCppTimeoutMs(environment.LLAMA_CPP_TIMEOUT_MS),
     databasePath: readRequiredValue(
       environment.GEXOR_DATABASE_PATH,
       ".data/gexor.sqlite",

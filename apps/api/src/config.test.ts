@@ -18,6 +18,9 @@ test("configuration uses safe local defaults", () => {
       geminiApiKey: undefined,
       geminiModel: "gemini-3.1-flash-lite",
       geminiTimeoutMs: 120000,
+      llamaCppBaseUrl: "http://127.0.0.1:8080/v1",
+      llamaCppModel: "qwen-local",
+      llamaCppTimeoutMs: 120000,
       databasePath: ".data/gexor.sqlite",
       cookieSecure: false,
       uploadPath: ".data/uploads",
@@ -40,6 +43,9 @@ test("configuration accepts valid environment values", () => {
       GEMINI_API_KEY: "test-placeholder-key",
       GEMINI_MODEL: "gemini-test-model",
       GEMINI_TIMEOUT_MS: "45000",
+      LLAMA_CPP_BASE_URL: "http://llama.test:8080/v1/",
+      LLAMA_CPP_MODEL: "llama-test-model",
+      LLAMA_CPP_TIMEOUT_MS: "60000",
       NODE_ENV: "production",
       GEXOR_ALLOWED_ORIGIN: "http://127.0.0.1:5173",
       GEXOR_DATABASE_PATH: ".data/test.sqlite",
@@ -58,6 +64,9 @@ test("configuration accepts valid environment values", () => {
       geminiApiKey: "test-placeholder-key",
       geminiModel: "gemini-test-model",
       geminiTimeoutMs: 45000,
+      llamaCppBaseUrl: "http://llama.test:8080/v1/",
+      llamaCppModel: "llama-test-model",
+      llamaCppTimeoutMs: 60000,
       databasePath: ".data/test.sqlite",
       cookieSecure: true,
       allowedOrigin: "http://127.0.0.1:5173",
@@ -84,7 +93,7 @@ test("configuration rejects blank or unsupported provider selection", () => {
       () => loadApiConfig({ TEXT_PROVIDER: value }),
       {
         message:
-          'TEXT_PROVIDER must be either "ollama" or "gemini".',
+          'TEXT_PROVIDER must be "ollama", "gemini", or "llama-cpp".',
       },
     );
   }
@@ -161,6 +170,66 @@ test("configuration rejects a nonnumeric port", () => {
         "PORT must be a whole number between 1 and 65535.",
     },
   );
+});
+
+test("configuration accepts llama-cpp provider selection", () => {
+  assert.equal(
+    loadApiConfig({
+      TEXT_PROVIDER: "  llama-cpp  ",
+    }).textProvider,
+    "llama-cpp",
+  );
+});
+
+test("configuration uses llama-cpp defaults", () => {
+  const config = loadApiConfig({ TEXT_PROVIDER: "llama-cpp" });
+  assert.equal(config.llamaCppBaseUrl, "http://127.0.0.1:8080/v1");
+  assert.equal(config.llamaCppModel, "qwen-local");
+  assert.equal(config.llamaCppTimeoutMs, 120000);
+});
+
+test("configuration accepts valid llama-cpp values", () => {
+  const config = loadApiConfig({
+    TEXT_PROVIDER: "llama-cpp",
+    LLAMA_CPP_BASE_URL: "http://custom.test:8080/v1",
+    LLAMA_CPP_MODEL: "custom-model",
+    LLAMA_CPP_TIMEOUT_MS: "30000",
+  });
+  assert.equal(config.llamaCppBaseUrl, "http://custom.test:8080/v1");
+  assert.equal(config.llamaCppModel, "custom-model");
+  assert.equal(config.llamaCppTimeoutMs, 30000);
+});
+
+test("configuration preserves trailing slash in llama-cpp base URL", () => {
+  const withSlash = loadApiConfig({
+    LLAMA_CPP_BASE_URL: "http://trailing.test:8080/v1/",
+  });
+  const withoutSlash = loadApiConfig({
+    LLAMA_CPP_BASE_URL: "http://trailing.test:8080/v1",
+  });
+  assert.equal(withSlash.llamaCppBaseUrl, "http://trailing.test:8080/v1/");
+  assert.equal(withoutSlash.llamaCppBaseUrl, "http://trailing.test:8080/v1");
+});
+
+test("configuration rejects blank llama-cpp values", () => {
+  assert.throws(
+    () => loadApiConfig({ LLAMA_CPP_BASE_URL: "   " }),
+    { message: "LLAMA_CPP_BASE_URL must not be empty." },
+  );
+
+  assert.throws(
+    () => loadApiConfig({ LLAMA_CPP_MODEL: "   " }),
+    { message: "LLAMA_CPP_MODEL must not be empty." },
+  );
+});
+
+test("configuration rejects invalid llama-cpp timeout", () => {
+  for (const value of ["invalid", "0"]) {
+    assert.throws(
+      () => loadApiConfig({ LLAMA_CPP_TIMEOUT_MS: value }),
+      { message: "LLAMA_CPP_TIMEOUT_MS must be a positive whole number." },
+    );
+  }
 });
 
 test("configuration rejects an out-of-range port", () => {

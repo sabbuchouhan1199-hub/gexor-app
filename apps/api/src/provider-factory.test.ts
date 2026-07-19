@@ -197,6 +197,163 @@ test("factory requires Gemini credentials before fetching", () => {
   assert.equal(fetchCalled, false);
 });
 
+test("factory maps llama-cpp workspace model override to llamaCppModel", async () => {
+  let capturedUrl = "";
+  let capturedBody = "";
+
+  // server.ts does: createTextProvider({...config, textProvider: "llama-cpp", ...{ llamaCppModel: modelId }})
+  const resolved = createTextProvider(
+    {
+      ...loadApiConfig({
+        LLAMA_CPP_BASE_URL: "http://override.test:8080/v1/",
+        LLAMA_CPP_MODEL: "default-model",
+        LLAMA_CPP_TIMEOUT_MS: "45000",
+      }),
+      textProvider: "llama-cpp",
+      llamaCppModel: "override-model",
+    },
+    {
+      fetchImplementation: async (input, init) => {
+        capturedUrl =
+          typeof input === "string"
+            ? input
+            : input instanceof URL
+              ? input.toString()
+              : input.url;
+        capturedBody = String(init?.body);
+        return new Response(
+          JSON.stringify({
+            model: "override-model",
+            choices: [{ message: { content: "from override" } }],
+          }),
+          { status: 200 },
+        );
+      },
+    },
+  );
+
+  await resolved.generateText({ input: "Hello" });
+  assert.equal(capturedUrl, "http://override.test:8080/v1/chat/completions");
+  assert.equal(
+    JSON.parse(capturedBody).model,
+    "override-model",
+  );
+});
+
+test("factory creates and configures a LlamaCpp-backed text provider", async () => {
+  let capturedUrl = "";
+  let capturedBody = "";
+
+  const provider = createTextProvider(
+    loadApiConfig({
+      TEXT_PROVIDER: "llama-cpp",
+      LLAMA_CPP_BASE_URL: "http://llama-factory.test:8080/v1/",
+      LLAMA_CPP_MODEL: "llama-factory-model",
+      LLAMA_CPP_TIMEOUT_MS: "45000",
+    }),
+    {
+      fetchImplementation: async (input, init) => {
+        capturedUrl =
+          typeof input === "string"
+            ? input
+            : input instanceof URL
+              ? input.toString()
+              : input.url;
+        capturedBody = String(init?.body);
+
+        return new Response(
+          JSON.stringify({
+            model: "llama-factory-model",
+            choices: [{ message: { content: "LlamaCpp factory reply" } }],
+          }),
+          { status: 200 },
+        );
+      },
+    },
+  );
+
+  const result = await provider.generateText({
+    input: "Hello",
+  });
+
+  assert.equal(
+    capturedUrl,
+    "http://llama-factory.test:8080/v1/chat/completions",
+  );
+  assert.equal(
+    JSON.parse(capturedBody).model,
+    "llama-factory-model",
+  );
+  assert.deepEqual(result, {
+    provider: "llama-cpp",
+    model: "llama-factory-model",
+    text: "LlamaCpp factory reply",
+  });
+});
+
+test("factory forwards the configured LlamaCpp timeout", async () => {
+  const provider = createTextProvider(
+    loadApiConfig({
+      TEXT_PROVIDER: "llama-cpp",
+      LLAMA_CPP_TIMEOUT_MS: "10",
+    }),
+    {
+      fetchImplementation: async (_input, init) =>
+        await new Promise<Response>(
+          (_resolve, reject) => {
+            init?.signal?.addEventListener(
+              "abort",
+              () =>
+                reject(
+                  new DOMException(
+                    "Aborted",
+                    "AbortError",
+                  ),
+                ),
+              { once: true },
+            );
+          },
+        ),
+    },
+  );
+
+  await assert.rejects(
+    provider.generateText({ input: "Hello" }),
+    (error: unknown) => {
+      assert.ok(error instanceof ProviderError);
+      assert.equal(error.code, "PROVIDER_TIMEOUT");
+      return true;
+    },
+  );
+});
+
+test("factory does not require Gemini credentials for LlamaCpp", async () => {
+  const provider = createTextProvider(
+    loadApiConfig({
+      TEXT_PROVIDER: "llama-cpp",
+    }),
+    {
+      fetchImplementation: async () =>
+        new Response(
+          JSON.stringify({
+            model: "qwen-local",
+            choices: [{ message: { content: "LlamaCpp reply" } }],
+          }),
+          { status: 200 },
+        ),
+    },
+  );
+
+  assert.equal(
+    (
+      await provider.generateText({
+        input: "Hello",
+      })
+    ).provider,
+    "llama-cpp",
+  );
+});
+
 test("factory does not require Gemini credentials for Ollama", async () => {
   const provider = createTextProvider(
     loadApiConfig({

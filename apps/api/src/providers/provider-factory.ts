@@ -4,6 +4,10 @@ import {
   type GeminiProviderOptions,
 } from "./gemini-provider.js";
 import {
+  LlamaCppProvider,
+  type LlamaCppProviderOptions,
+} from "./llama-cpp-provider.js";
+import {
   OllamaProvider,
   type OllamaProviderOptions,
 } from "./ollama-provider.js";
@@ -58,6 +62,21 @@ export function createTextProvider(
       }
 
       return new GeminiProvider(options);
+    }
+
+    case "llama-cpp": {
+      const options: LlamaCppProviderOptions = {
+        baseUrl: config.llamaCppBaseUrl,
+        model: config.llamaCppModel,
+        timeoutMs: config.llamaCppTimeoutMs,
+      };
+
+      if (dependencies.fetchImplementation) {
+        options.fetchImplementation =
+          dependencies.fetchImplementation;
+      }
+
+      return new LlamaCppProvider(options);
     }
 
     default:
