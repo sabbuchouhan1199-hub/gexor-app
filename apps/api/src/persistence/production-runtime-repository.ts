@@ -1,3 +1,4 @@
+import { EventEmitter } from "node:events";
 import { randomUUID } from "node:crypto";
 
 import type {
@@ -35,11 +36,32 @@ export type ClaimedExecutionJob = {
 };
 
 export class SqliteProductionRuntimeRepository {
+  private readonly eventEmitter = new EventEmitter();
+
   constructor(
     private readonly database: SqliteDatabase,
     private readonly store: SqliteRuntimeExecutionStore,
     private readonly options: { now?: () => Date; createId?: () => string; replayLimit?: number } = {},
   ) {}
+
+  notifyEvent(executionId: string): void {
+    this.eventEmitter.emit(`execution:${executionId}`);
+  }
+
+  waitForEvent(executionId: string, maxMs = 5000): Promise<void> {
+    return new Promise((resolve) => {
+      let timer: NodeJS.Timeout;
+      const listener = () => {
+        clearTimeout(timer);
+        resolve();
+      };
+      timer = setTimeout(() => {
+        this.eventEmitter.removeListener(`execution:${executionId}`, listener);
+        resolve();
+      }, maxMs);
+      this.eventEmitter.once(`execution:${executionId}`, listener);
+    });
+  }
 
   private now(): string { return (this.options.now ?? (() => new Date()))().toISOString(); }
   private id(prefix: string): string { return `${prefix}_${(this.options.createId ?? randomUUID)()}`; }
@@ -103,6 +125,7 @@ export class SqliteProductionRuntimeRepository {
     const persisted = this.database.prepare(
       "SELECT * FROM execution_events WHERE execution_id = ? AND sequence = ?",
     ).get(executionId, sequence) as Record<string, unknown>;
+    this.notifyEvent(executionId);
     return eventFromRow(persisted);
   }
 
@@ -197,6 +220,7 @@ export class SqliteProductionRuntimeRepository {
     this.database.prepare(`
       UPDATE execution_jobs SET state=?, lease_owner=NULL, lease_expires_at=NULL, updated_at=? WHERE execution_id=?
     `).run(state, timestamp, executionId);
+    this.notifyEvent(executionId);
   }
 
   retryJob(executionId: string, safeErrorCode: string, delayMs: number): boolean {

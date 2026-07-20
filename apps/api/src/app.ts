@@ -802,7 +802,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         current.events.forEach(send);
         if (["completed", "failed", "timed_out", "cancelled"].includes(current.snapshot.state) && current.events.length === 0) break;
         if (Date.now() - heartbeatAt >= 15_000) { reply.raw.write(`: heartbeat ${Date.now()}\n\n`); heartbeatAt = Date.now(); }
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        await ((runtime as unknown as { waitForEvent?: (id: string, ms: number) => Promise<void> }).waitForEvent
+          ? (runtime as unknown as { waitForEvent: (id: string, ms: number) => Promise<void> }).waitForEvent(request.params.executionId, 5_000)
+          : new Promise((resolve) => setTimeout(resolve, 50)));
       }
       if (!closed) reply.raw.end();
     },
