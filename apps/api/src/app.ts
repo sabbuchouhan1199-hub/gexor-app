@@ -292,6 +292,20 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     done(null, Buffer.isBuffer(body) ? body : Buffer.from(body));
   });
 
+  app.addContentTypeParser("application/json", { parseAs: "string", bodyLimit: 1024 * 1024 }, (_request, body, done) => {
+    if (typeof body !== "string" || body.trim().length === 0) {
+      done(null, null);
+    } else {
+      try {
+        done(null, JSON.parse(body));
+      } catch (e: unknown) {
+        const err = e as Error & { statusCode?: number };
+        err.statusCode = 400;
+        done(err);
+      }
+    }
+  });
+
   const executionStore = dependencies.executionStore ?? new InMemoryRuntimeExecutionStore();
   const compatibilityExecutionStore = dependencies.compatibilityExecutionStore ?? executionStore;
   const compatibilityRuntimeExecutor = new RuntimeExecutor(
@@ -843,6 +857,10 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   ));
 
   app.setErrorHandler(async (error: FastifyError, request, reply) => {
+    if (error.statusCode === 400) {
+      return sendProblem(reply, request.id, "VALIDATION_ERROR", 400);
+    }
+
     if (error.validation) {
       return reply.status(400).type(problemContentType).send(
         createProblem("VALIDATION_ERROR", 400, request.id, {

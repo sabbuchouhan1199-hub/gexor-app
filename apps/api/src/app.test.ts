@@ -319,3 +319,21 @@ test("unknown routes and missing executions use canonical problems", async () =>
     status: 404, code: "EXECUTION_NOT_FOUND", retryable: false,
   });
 });
+
+test("handles empty and malformed JSON body safely", async () => {
+  const emptyResponse = await app.inject({
+    method: "POST",
+    url: "/mock/chat",
+    headers: { "content-type": "application/json" },
+    payload: "",
+  });
+  assert.equal(emptyResponse.statusCode, 400);
+
+  const malformedResponse = await app.inject({
+    method: "POST",
+    url: "/mock/chat",
+    headers: { "content-type": "application/json" },
+    payload: "{ invalid json ",
+  });
+  assert.equal(malformedResponse.statusCode, 400);
+});
