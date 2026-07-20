@@ -34,15 +34,15 @@ Compatibility `/chat` and `/mock/chat` routes remain for local development and t
 
 - HttpOnly browser session cookies with production `Secure` behavior, SameSite=Lax, logout invalidation, `/api/v1/auth/me` restoration, and CSRF checks for cookie-authenticated unsafe requests.
 - Workspace-scoped authorization on conversations, messages, executions, provider connections, usage, and files.
-- Durable SQLite migrations through `003_production_runtime` for replay events, queue jobs, execution relationships, provider routing and attempts, usage and budgets, soft-deletion evidence, file attachments, and file chunks.
-- Live Server-Sent Events for execution replay and incremental response deltas.
+- Durable SQLite migrations through `005_llama_cpp` for replay events, queue jobs, execution relationships, provider routing and attempts, usage and budgets, soft-deletion evidence, file attachments, file chunks, and llama.cpp/Qwen local provider integration.
+- Live Server-Sent Events with event-driven in-process wakeup and durable replay fallback.
 - Cancel, retry, and regenerate execution controls with durable relationships and idempotency keys.
 - Durable background worker with SQLite leases, retry wait, stale lease recovery, bounded attempts, dead-letter state, graceful shutdown, and queue metrics.
-- Provider connection management with safe redaction, health state, enable/disable, default/priority routing, and bounded fallback by attempt number.
-- Usage dashboard data with request outcomes, estimated token usage, cost placeholders using an unpriced pricing version, provider/model breakdowns, and optional workspace budgets.
-- Chat rename, soft delete, workspace-scoped search, responsive controls, streaming indicator, safe Markdown/code rendering, and copy-code control.
+- Provider connection management with safe redaction, health state, enable/disable, default/priority routing, and bounded fallback by attempt number across Gemini, Ollama, and llama.cpp/Qwen.
+- Usage dashboard data consuming provider-reported measured tokens when available (or character estimation fallback), pricing classification (`measured`, `estimated`, `unavailable`), explicit `Unpriced` pricing model status, provider/model breakdowns, and optional workspace budgets.
+- Chat rename, soft delete, workspace-scoped search, responsive controls, mobile drawer navigation, accessible Escape-key modal controls, streaming indicator, safe Markdown/code rendering, and copy-code control.
 - File upload foundation for PDF, plain text, and Markdown with type/signature checks, server-generated storage keys, local private storage, bounded extraction, chunks, and untrusted document grounding.
-- Structured JSON logging in production, redaction, protected metrics, health/readiness endpoints, in-memory layered rate limits, SQLite online backup command, and GitHub Actions CI.
+- Structured JSON logging in production, redaction, protected metrics, health/readiness endpoints, in-memory layered rate limits, SQLite online backup command with tested restore drill, and GitHub Actions CI.
 
 ## Local Development
 

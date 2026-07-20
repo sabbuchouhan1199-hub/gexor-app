@@ -8,7 +8,7 @@ This document explicitly defines the accepted technical, operational, and archit
 
 - **Single-Node Queue & Worker**: Background jobs (`execution_jobs`), leases, worker polling, and attempt retries are managed within a local SQLite database on a single node. Gexor v2.2 does not use Redis, RabbitMQ, or a distributed queue system.
 - **In-Memory Rate Limiting**: HTTP rate limits are tracked in-process memory (`rateWindows`). Multi-node API instances would enforce independent rate limits per instance.
-- **In-Process SSE Polling**: Live streaming events are retrieved by polling SQLite at 50ms intervals per active connection. Scaled multi-node setups would use pub/sub or Redis streams.
+- **Event-Driven SSE Wakeup & Fallback Polling**: Live streaming events use in-process event notifications (`waitForEvent`) with a 5-second idle polling fallback. SSE stream listeners wake up instantly when events occur, eliminating continuous 50ms polling loop overhead while maintaining single-node SQLite event replay durability.
 - **Single-Node Backup & Restore**: Database online backups copy the local SQLite file; file upload storage is located on local disk. Both must be backed up from the same maintenance window to preserve storage consistency.
 
 ---

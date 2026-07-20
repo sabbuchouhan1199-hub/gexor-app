@@ -221,16 +221,16 @@ Verified current implementation:
 
 Known limitations: no hosted CD target, no distributed metrics/rate-limit store, no incident-response platform, no database encryption claim.
 
-## 17. Verification Baseline From This Upgrade
+## 17. Verification Baseline From v2.2.0 Release
 
-Current verified command results during the upgrade task:
+Current verified command results for Gexor v2.2.0:
 
-- API typecheck: passed.
-- API tests: passed, 113 tests.
-- Web typecheck: passed.
-- Web tests: passed, 5 tests.
-
-Do not quote these as current unless rerun in the present task. The full final gate must still be run before final publication.
+- API typecheck (`npm run typecheck`): passed cleanly across `@gexor/api`, `@gexor/web`, `@gexor/contracts`.
+- API tests (`npx tsx --test`): passed, 200 tests.
+- Web typecheck & tests (`vitest run`): passed, 6 tests.
+- Total workspace tests: 206 tests.
+- Production build (`npm run build`): passed.
+- Full verification gate (`npm run verify`): passed.
 
 ## 18. Documentation and Unknowns
 
@@ -241,6 +241,7 @@ Verified docs now present:
 - `docs/OPERATIONS.md`
 - `AGENTS.md`
 - `GEXOR.md`
+- `docs/releases/v2.2/*` (v2.2 release closure specification & evidence)
 
 Unknown or unverified:
 
@@ -254,4 +255,5 @@ Unknown or unverified:
 ## 19. Change History
 
 - 2026-07-18: Durable Codex bootstrap files added.
-- 2026-07-18: Major runtime upgrade implemented in the working tree: SSE/replay, cancel/retry/regenerate, durable worker/queue, cookie auth/CSRF, provider health/routing, usage/budgets, chat management/Markdown, file uploads/extraction, backup/logging/metrics/rate limits/CI foundations, and updated docs.
+- 2026-07-18: Major runtime upgrade implemented: SSE/replay, cancel/retry/regenerate, durable worker/queue, cookie auth/CSRF, provider health/routing, usage/budgets, chat management/Markdown, file uploads/extraction, backup/logging/metrics/rate limits/CI foundations, and updated docs.
+- 2026-07-20: Gexor v2.2.0 release closure completed across Parts 1–4: contracts alignment, SSE event-driven wakeup, provider usage classification, backup/restore verification, mobile drawer/accessibility updates, and complete release documentation reconciliation.

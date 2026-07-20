@@ -1,6 +1,6 @@
 {
   "name": "@gexor/contracts",
-  "version": "0.1.0",
+  "version": "2.2.0",
   "license": "UNLICENSED",
   "private": true,
   "main": "./src/index.ts",

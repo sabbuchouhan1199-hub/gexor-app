@@ -22,8 +22,8 @@
 | `V22-UI-01` | `REQ-UX-001`, `REQ-UX-002` | React/Vite Authenticated Workspace UI | `apps/web/src/Workspace.tsx`, `App.tsx` | `VERIFIED_COMPLETE` | None | `npm run test` | Part 1 |
 | `V22-UI-02` | `REQ-UX-003`, `REQ-RTM-006` | Duplicate Regenerate Button Fix | `apps/web/src/Workspace.tsx` (line 106) | `VERIFIED_COMPLETE` | None | `npm run test` | Part 2 |
 | `V22-UI-03` | `REQ-UX-004`, `REQ-API-002` | Message Input Length Contract Alignment (4000) | `packages/contracts/src/index.ts`, `apps/api/src/app.ts`, `apps/web/src/Workspace.tsx` | `VERIFIED_COMPLETE` | None | `npm run test` | Part 2 |
-| `V22-UI-04` | `REQ-UX-007`, `REQ-MOB-001` | Mobile Conversation Navigation Drawer | `apps/web/src/styles.css` (lines 2-3) | `NEEDS_CODE_FIX` | Add mobile navigation drawer toggle in header for phone screen widths | Web component test | Part 2 |
-| `V22-UI-05` | `REQ-UX-008`, `REQ-ACC-001` | Modal Accessibility & Escape Key Handling | `apps/web/src/Workspace.tsx` (line 96) | `NEEDS_CODE_FIX` | Add Escape key handler and focus management to modals | Web component test | Part 2 |
+| `V22-UI-04` | `REQ-UX-007`, `REQ-MOB-001` | Mobile Conversation Navigation Drawer | `apps/web/src/Workspace.tsx`, `apps/web/src/styles.css` | `VERIFIED_COMPLETE` | None | `npm run test` | Part 2 |
+| `V22-UI-05` | `REQ-UX-008`, `REQ-ACC-001` | Modal Accessibility & Escape Key Handling | `apps/web/src/Workspace.tsx` | `VERIFIED_COMPLETE` | None | `npm run test` | Part 2 |
 | `V22-UI-06` | `REQ-UX-009`, `REQ-SEC-004` | Safe Markdown Code Block Rendering & Copy | `apps/web/src/Workspace.tsx` (lines 110-113) | `ACCEPTED_LIMITATION` | Document lightweight safe markdown parser boundary | `KNOWN-LIMITATIONS.md` review | Part 4 |
 | `V22-TEST-01` | `REQ-TST-002`, `REQ-TST-003` | Deterministic API & Web Test Suite | 200 API tests, 6 Web tests | `VERIFIED_COMPLETE` | None | `npm run verify` | Part 1 |
 | `V22-TEST-02` | `REQ-TST-004`, `REQ-TST-005` | Regression Tests for UI Fixes & Replay Gap | `apps/web/src/Workspace.test.tsx`, `apps/api/src/app.test.ts` | `VERIFIED_COMPLETE` | None | `npm run test` | Part 2 |

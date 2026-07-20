@@ -29,7 +29,7 @@ Important variables:
 - `GEXOR_BACKUP_PATH`
 - `GEXOR_BACKUP_RETENTION`
 
-## Backups
+## Backups and Restore Verification
 
 Run SQLite online backup:
 
@@ -39,11 +39,9 @@ npm run backup
 
 The backup command creates timestamped SQLite backup files in `GEXOR_BACKUP_PATH` and applies retention from `GEXOR_BACKUP_RETENTION`. Backup logs must not include secrets. Backup files are ignored by Git.
 
-Uploaded files are stored separately from the SQLite database. A consistent operational backup must include both the SQLite backup and the configured upload directory from the same maintenance window. If object storage is added later, this consistency requirement must be revisited.
+Automated restore verification is implemented in `apps/api/src/operations/backup.test.ts`, which verifies snapshot creation, schema integrity, and data readability upon database restore.
 
-## Restore Verification
-
-A safe restore drill should use a copy of the backup, not the active database:
+A manual operational restore drill should use a copy of the backup, not the active database:
 
 1. Stop API and worker processes for the restore target.
 2. Copy the selected SQLite backup to a temporary restore path.
@@ -53,6 +51,10 @@ A safe restore drill should use a copy of the backup, not the active database:
 6. Confirm conversations, executions, usage rows, provider routing metadata, and attachment metadata load without exposing private content in logs.
 
 Do not run restore drills against private user data unless explicitly authorized.
+
+## SSE Event-Driven Wakeup
+
+SSE streaming uses event-driven in-process wakeup (`waitForEvent`) with durable SQLite replay fallback. When events or state changes occur, SSE connections wake up immediately. In idle periods, a 5-second fallback poll ensures heartbeats and reconnection handling without incurring 50ms busy-polling overhead.
 
 ## Structured Logs
 
@@ -80,8 +82,8 @@ GitHub Actions CI installs from the lockfile, enforces the Node version from `.n
 
 ## Known Operational Limits
 
-- SQLite queue, leases, metrics, and rate limits are single-node.
+- SQLite queue, leases, metrics, rate limits, and SSE event emitters are single-node.
 - No external secret manager or encrypted credential vault is implemented.
 - File extraction is bounded text extraction, not OCR or full RAG.
-- Cost records are reproducible against pricing versions, but current default pricing is intentionally unpriced.
+- Cost records distinguish `measured` provider tokens vs `estimated` fallback tokens, with explicit `Unpriced` status when pricing models are unpriced.
 - Metrics and structured logs are foundations, not a complete incident-response platform.
