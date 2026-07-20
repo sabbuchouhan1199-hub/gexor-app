@@ -10,7 +10,7 @@
 | `V22-SSE-01` | `REQ-RTM-005`, `REQ-SSE-001` | SSE Live Streaming & Delta Events | `apps/api/src/app.ts` (lines 770-798), `ApiClient.ts` | `VERIFIED_COMPLETE` | None | `npm run test` | Part 1 |
 | `V22-SSE-02` | `REQ-SSE-002`, `REQ-SSE-003` | SSE Event Replay & Sequence Cursor | `apps/api/src/app.ts` (lines 772-790), `production-runtime.test.ts` | `VERIFIED_COMPLETE` | None | `npm run test` | Part 1 |
 | `V22-SSE-03` | `REQ-SSE-004`, `REQ-UX-005` | SSE Replay-Gap Compatibility with Web Client | `apps/api/src/app.ts` (line 787), `apps/web/src/api/client.ts` (line 27), `app.test.ts` | `VERIFIED_COMPLETE` | None | `npm run test` | Part 2 |
-| `V22-SSE-04` | `REQ-NFR-002`, `REQ-OPS-004` | 50ms SQLite SSE Polling Interval | `apps/api/src/app.ts` (line 795) | `ACCEPTED_LIMITATION` | Document as single-node local limitation | `docs/OPERATIONS.md` review | Part 4 |
+| `V22-SSE-04` | `REQ-NFR-002`, `REQ-OPS-004` | Event-Driven SSE Wakeup & Fallback Polling | `apps/api/src/persistence/production-runtime-repository.ts` (`waitForEvent`), `apps/api/src/app.ts` (line 805), `production-runtime.test.ts` | `VERIFIED_COMPLETE` | None | `npm run test` | Part 3 |
 | `V22-PROV-01` | `REQ-PRV-001`, `REQ-PRV-002` | Provider Catalogue & Connection Routing | `apps/api/src/app.ts` (lines 560-635), `provider-connections.test.ts` | `VERIFIED_COMPLETE` | None | `npm run test` | Part 1 |
 | `V22-PROV-02` | `REQ-PRV-003`, `REQ-PRV-004` | Deterministic Provider Fallback & Audit | `apps/api/src/providers/` | `VERIFIED_COMPLETE` | None | `npm run test` | Part 1 |
 | `V22-PROV-03` | `REQ-TST-001`, `REQ-PRV-005` | Hermetic Provider Unit Tests | `apps/api/src/provider-connections.test.ts` (lines 116-135) | `VERIFIED_COMPLETE` | None | `npm run test` | Part 1 |
@@ -25,12 +25,12 @@
 | `V22-UI-04` | `REQ-UX-007`, `REQ-MOB-001` | Mobile Conversation Navigation Drawer | `apps/web/src/styles.css` (lines 2-3) | `NEEDS_CODE_FIX` | Add mobile navigation drawer toggle in header for phone screen widths | Web component test | Part 2 |
 | `V22-UI-05` | `REQ-UX-008`, `REQ-ACC-001` | Modal Accessibility & Escape Key Handling | `apps/web/src/Workspace.tsx` (line 96) | `NEEDS_CODE_FIX` | Add Escape key handler and focus management to modals | Web component test | Part 2 |
 | `V22-UI-06` | `REQ-UX-009`, `REQ-SEC-004` | Safe Markdown Code Block Rendering & Copy | `apps/web/src/Workspace.tsx` (lines 110-113) | `ACCEPTED_LIMITATION` | Document lightweight safe markdown parser boundary | `KNOWN-LIMITATIONS.md` review | Part 4 |
-| `V22-TEST-01` | `REQ-TST-002`, `REQ-TST-003` | Deterministic API & Web Test Suite | 196 API tests, 5 Web tests | `VERIFIED_COMPLETE` | None | `npm run verify` | Part 1 |
+| `V22-TEST-01` | `REQ-TST-002`, `REQ-TST-003` | Deterministic API & Web Test Suite | 200 API tests, 6 Web tests | `VERIFIED_COMPLETE` | None | `npm run verify` | Part 1 |
 | `V22-TEST-02` | `REQ-TST-004`, `REQ-TST-005` | Regression Tests for UI Fixes & Replay Gap | `apps/web/src/Workspace.test.tsx`, `apps/api/src/app.test.ts` | `VERIFIED_COMPLETE` | None | `npm run test` | Part 2 |
 | `V22-OPS-01` | `REQ-OPS-001`, `REQ-SEC-003` | Structured JSON Logging & Header Redaction | `apps/api/src/app.ts` (line 279) | `VERIFIED_COMPLETE` | None | `npm run test` | Part 1 |
 | `V22-OPS-02` | `REQ-OPS-002`, `REQ-OPS-003` | Protected Metrics Endpoint (`/api/v1/metrics`) | `apps/api/src/app.ts` (lines 440-460) | `VERIFIED_COMPLETE` | None | `npm run test` | Part 1 |
 | `V22-OPS-03` | `REQ-NFR-003`, `REQ-OPS-005` | Single-Node In-Memory Rate Limiting | `apps/api/src/app.ts` (lines 289, 470-520) | `ACCEPTED_LIMITATION` | Document single-node rate limit boundary | `docs/OPERATIONS.md` review | Part 4 |
-| `V22-OPS-04` | `REQ-OPS-006`, `REQ-DATA-004` | Online SQLite Backup Script & Restore Drill | `apps/api/src/backup.ts`, `docs/OPERATIONS.md` | `VERIFIED_COMPLETE` | None | `npm run backup` | Part 1 |
-| `V22-DOC-01` | `REQ-DOC-001`, `REQ-DOC-002` | Release Documentation & Provider Status Taxonomy | `GEXOR.md`, `README.md`, `OPERATIONS.md` | `NEEDS_DOCUMENTATION` | Update test counts, version snapshot, and provider taxonomy | Doc review | Part 4 |
+| `V22-OPS-04` | `REQ-OPS-006`, `REQ-DATA-004` | Online SQLite Backup Script & Restore Drill | `apps/api/src/operations/backup.ts`, `backup.test.ts`, `docs/OPERATIONS.md` | `VERIFIED_COMPLETE` | None | `npm run test` | Part 3 |
+| `V22-DOC-01` | `REQ-DOC-001`, `REQ-DOC-002` | Release Documentation & Provider Status Taxonomy | `GEXOR.md`, `README.md`, `docs/OPERATIONS.md` | `VERIFIED_COMPLETE` | None | Doc review | Part 3 |
 | `V22-MAINT-01` | `REQ-MNT-001` | Automatic Event Replay Log Compaction | Not implemented | `DEFERRED_TO_V2_2_1` | Defer to v2.2.1 minor update | Future task | Post-v2.2 |
 | `V22-DIST-01` | `REQ-DST-001` | Multi-Node Redis Queue & HA Cluster | Not implemented | `FUTURE` | Out of scope for v2.2 release | Architecture review | Future |

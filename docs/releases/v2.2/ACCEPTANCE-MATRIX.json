@@ -82,12 +82,12 @@
   {
     "itemId": "V22-SSE-04",
     "governingRequirements": ["REQ-NFR-002", "REQ-OPS-004"],
-    "capability": "50ms SQLite SSE Polling Interval",
-    "currentEvidence": "apps/api/src/app.ts (line 795)",
-    "status": "ACCEPTED_LIMITATION",
-    "requiredAction": "Document as single-node local limitation",
-    "verificationMethod": "docs/OPERATIONS.md review",
-    "targetClosure": "Part 4"
+    "capability": "Event-Driven SSE Wakeup & Fallback Polling",
+    "currentEvidence": "apps/api/src/persistence/production-runtime-repository.ts (waitForEvent), apps/api/src/app.ts (line 805), production-runtime.test.ts",
+    "status": "VERIFIED_COMPLETE",
+    "requiredAction": "None",
+    "verificationMethod": "npm run test",
+    "targetClosure": "Part 3"
   },
   {
     "itemId": "V22-PROV-01",
@@ -283,21 +283,21 @@
     "itemId": "V22-OPS-04",
     "governingRequirements": ["REQ-OPS-006", "REQ-DATA-004"],
     "capability": "Online SQLite Backup Script & Restore Drill",
-    "currentEvidence": "apps/api/src/backup.ts, docs/OPERATIONS.md",
+    "currentEvidence": "apps/api/src/operations/backup.ts, backup.test.ts, docs/OPERATIONS.md",
     "status": "VERIFIED_COMPLETE",
     "requiredAction": "None",
-    "verificationMethod": "npm run backup",
-    "targetClosure": "Part 1"
+    "verificationMethod": "npm run test",
+    "targetClosure": "Part 3"
   },
   {
     "itemId": "V22-DOC-01",
     "governingRequirements": ["REQ-DOC-001", "REQ-DOC-002"],
     "capability": "Release Documentation & Provider Status Taxonomy",
-    "currentEvidence": "GEXOR.md, README.md, OPERATIONS.md",
-    "status": "NEEDS_DOCUMENTATION",
-    "requiredAction": "Update test counts, version snapshot, and provider taxonomy",
+    "currentEvidence": "GEXOR.md, README.md, docs/OPERATIONS.md",
+    "status": "VERIFIED_COMPLETE",
+    "requiredAction": "None",
     "verificationMethod": "Doc review",
-    "targetClosure": "Part 4"
+    "targetClosure": "Part 3"
   },
   {
     "itemId": "V22-MAINT-01",
