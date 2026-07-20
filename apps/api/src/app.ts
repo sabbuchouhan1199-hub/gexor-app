@@ -778,7 +778,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         current.events.forEach(send);
         if (["completed", "failed", "timed_out", "cancelled"].includes(current.snapshot.state) && current.events.length === 0) break;
         if (Date.now() - heartbeatAt >= 15_000) { reply.raw.write(`: heartbeat ${Date.now()}\n\n`); heartbeatAt = Date.now(); }
-        await new Promise((resolve) => setTimeout(resolve, 250));
+        await new Promise((resolve) => setTimeout(resolve, 50));
       }
       if (!closed) reply.raw.end();
     },
