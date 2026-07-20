@@ -17,8 +17,8 @@ const providers = new WorkspaceProviderConnectionService(
   async ({ providerKey, credentialReference }) => credentialReference === "local-env:configured" && providerKey === config.textProvider,
   async ({ providerKey, modelId, credentialReference }) => {
     if (credentialReference !== "local-env:configured" || providerKey !== config.textProvider) throw new Error("The protected credential reference cannot be resolved.");
-    return createTextProvider({ ...config, textProvider: providerKey as typeof config.textProvider,
-      ...(providerKey === "ollama" ? { ollamaModel: modelId } : { geminiModel: modelId }) });
+     return createTextProvider({ ...config, textProvider: providerKey as typeof config.textProvider,
+       ...(providerKey === "ollama" ? { ollamaModel: modelId } : providerKey === "gemini" ? { geminiModel: modelId } : { llamaCppModel: modelId }) });
   },
 );
 const worker = new RuntimeWorker(runtime, store, (workspaceId, attempt) => providers.providerForWorkspace(workspaceId, attempt));

@@ -37,9 +37,9 @@ function ids(prefix = "id") {
 test("core migration applies and rolls back deterministically", () => {
   const database = new SqliteDatabase({ filename: ":memory:", now });
   database.migrate();
+  assert.equal(database.prepare("SELECT count(*) AS count FROM schema_migrations").get()!.count, 5);
+  assert.equal(database.rollbackLastMigration(), 5);
   assert.equal(database.prepare("SELECT count(*) AS count FROM schema_migrations").get()!.count, 4);
-  assert.equal(database.rollbackLastMigration(), 4);
-  assert.equal(database.prepare("SELECT count(*) AS count FROM schema_migrations").get()!.count, 3);
   database.migrate();
   assert.ok(database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'outbox_events'").get());
   assert.ok(database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'execution_events'").get());
@@ -324,4 +324,54 @@ test("migration 004 backfills populated routing selections and rolls back determ
     }
     rmSync(tempMigrationsDir, { recursive: true, force: true });
   }
+});
+
+test("migration 005 adds llama-cpp provider and model deterministically", () => {
+  const database = new SqliteDatabase({ filename: ":memory:", now });
+  database.migrate();
+
+  const providers = database.prepare("SELECT * FROM provider_catalog WHERE provider_key = 'llama-cpp'").all() as any[];
+  assert.equal(providers.length, 1);
+  assert.equal(providers[0].provider_key, "llama-cpp");
+  assert.equal(providers[0].display_name, "Local llama.cpp");
+  assert.equal(providers[0].status, "active");
+
+  const models = database.prepare("SELECT * FROM model_catalog WHERE model_key = 'llama-cpp:qwen-local'").all() as any[];
+  assert.equal(models.length, 1);
+  assert.equal(models[0].model_key, "llama-cpp:qwen-local");
+  assert.equal(models[0].provider_key, "llama-cpp");
+  assert.equal(models[0].provider_model_id, "qwen-local");
+  assert.equal(models[0].display_name, "Qwen 2.5 3B Local");
+  assert.equal(models[0].status, "active");
+
+  database.close();
+});
+
+test("migration 005 rollback removes seeded catalogue entries", () => {
+  const database = new SqliteDatabase({ filename: ":memory:", now });
+  database.migrate();
+
+  assert.equal(database.rollbackLastMigration(), 5);
+  assert.equal(database.prepare("SELECT count(*) AS count FROM schema_migrations").get()!.count, 4);
+
+  assert.equal(database.prepare("SELECT count(*) AS count FROM provider_catalog WHERE provider_key = 'llama-cpp'").get()!.count, 0);
+  assert.equal(database.prepare("SELECT count(*) AS count FROM model_catalog WHERE model_key = 'llama-cpp:qwen-local'").get()!.count, 0);
+
+  database.migrate();
+  assert.equal(database.prepare("SELECT count(*) AS count FROM schema_migrations").get()!.count, 5);
+  assert.equal(database.prepare("SELECT count(*) AS count FROM provider_catalog WHERE provider_key = 'llama-cpp'").get()!.count, 1);
+
+  database.close();
+});
+
+test("migration 005 does not alter existing Ollama and Gemini catalogue rows", () => {
+  const database = new SqliteDatabase({ filename: ":memory:", now });
+  database.migrate();
+
+  assert.equal(database.prepare("SELECT count(*) AS count FROM provider_catalog WHERE provider_key = 'ollama'").get()!.count, 1);
+  assert.equal(database.prepare("SELECT count(*) AS count FROM provider_catalog WHERE provider_key = 'gemini'").get()!.count, 1);
+  assert.equal(database.prepare("SELECT count(*) AS count FROM model_catalog WHERE model_key = 'ollama:qwen3-0.6b'").get()!.count, 1);
+  assert.equal(database.prepare("SELECT count(*) AS count FROM model_catalog WHERE model_key = 'gemini:flash-lite'").get()!.count, 1);
+
+  database.close();
 });
