@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "license": "UNLICENSED",
   "private": true,
+  "main": "./src/index.ts",
+  "exports": "./src/index.ts",
   "scripts": {
     "typecheck": "tsc --project tsconfig.json"
   }

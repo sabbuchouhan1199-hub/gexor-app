@@ -12,6 +12,10 @@ import type {
   TextProvider,
 } from "./providers/provider.js";
 import { InMemoryRuntimeExecutionStore } from "./runtime-execution-store.js";
+import { SqliteDatabase } from "./persistence/database.js";
+import { SqliteProductionRuntimeRepository } from "./persistence/production-runtime-repository.js";
+import { SqliteMessageAcceptanceRepository, SqliteRuntimeExecutionStore } from "./persistence/sqlite-runtime-repository.js";
+import { SqliteConversationRepository, SqliteIdentityRepository, SqliteSessionRepository, SqliteWorkspaceRepository } from "./persistence/sqlite-repositories.js";
 
 let providerCallCount = 0;
 const textProvider: TextProvider = {
@@ -336,4 +340,62 @@ test("handles empty and malformed JSON body safely", async () => {
     payload: "{ invalid json ",
   });
   assert.equal(malformedResponse.statusCode, 400);
+});
+
+test("SSE event stream formats replay gap events as valid ExecutionStreamEvents", async () => {
+  const db = new SqliteDatabase({ filename: ":memory:" }); db.migrate();
+  const store = new SqliteRuntimeExecutionStore(db);
+  const productionRuntime = new SqliteProductionRuntimeRepository(db, store);
+  const messageAcceptanceRepository = new SqliteMessageAcceptanceRepository(db, store, { durableRuntime: productionRuntime });
+  const conversationRepository = new SqliteConversationRepository(db);
+  const workspaceRepository = new SqliteWorkspaceRepository(db);
+  const identityRepository = new SqliteIdentityRepository(db);
+  const sessionRepository = new SqliteSessionRepository(db);
+  const runtimeApp = buildApp({
+    database: db,
+    productionRuntime,
+    messageAcceptanceRepository,
+    conversationRepository,
+    workspaceRepository,
+    identityRepository,
+    sessionRepository,
+    textProvider: { async generateText() { return { provider: "fake", model: "m", text: "ok" }; } },
+  });
+  try {
+    const headers = await authorizedHeaders(runtimeApp);
+    const convRes = await runtimeApp.inject({
+      method: "POST",
+      url: `/api/v1/workspaces/${headers["x-workspace-id"]}/conversations`,
+      headers,
+      payload: { title: "Gap conversation" },
+    });
+    const conv = convRes.json() as { conversationId: string };
+    const postRes = await runtimeApp.inject({
+      method: "POST",
+      url: `/api/v1/conversations/${conv.conversationId}/messages`,
+      headers: { ...headers, "idempotency-key": "gap-key-1" },
+      payload: { content: [{ type: "text", text: "Gap test" }] },
+    });
+    assert.equal(postRes.statusCode, 202);
+    const accepted = postRes.json() as { executionId: string; links: { execution: string } };
+    store.transition(accepted.executionId, "preparing");
+    store.transition(accepted.executionId, "dispatching");
+    store.transition(accepted.executionId, "completed", { provider: "fake", model: "m", response: { text: "done" } });
+    productionRuntime.appendEvent(accepted.executionId, headers["x-workspace-id"], "response.completed", { text: "done" });
+    // Shift event sequence numbers +10 to simulate a gap (minimum available sequence in DB is 11, client asks for after=1)
+    db.prepare("UPDATE execution_events SET sequence = sequence + 10 WHERE execution_id = ?").run(accepted.executionId);
+
+    // Request events with sequence after=1 when minimum available in DB is 2 (1 < 2 - 1 is true)
+    const gapRes = await runtimeApp.inject({
+      method: "GET",
+      url: `${accepted.links.execution}/events?after=1`,
+      headers,
+    });
+    assert.equal(gapRes.statusCode, 200);
+    assert.match(gapRes.body, /event: execution\.snapshot/);
+    assert.match(gapRes.body, /"replayGap":true/);
+  } finally {
+    await runtimeApp.close();
+    db.close();
+  }
 });

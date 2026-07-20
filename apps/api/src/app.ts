@@ -785,7 +785,16 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         reply.raw.write(`id: ${event.eventId}\nevent: ${event.eventType}\ndata: ${JSON.stringify(event)}\n\n`);
         cursor = Math.max(cursor, event.sequence);
       };
-      if (replay.replayGap) reply.raw.write(`event: execution.snapshot\ndata: ${JSON.stringify({ replayGap: true, snapshot: replay.snapshot })}\n\n`);
+      if (replay.replayGap) {
+        send({
+          eventId: `evt_${request.params.executionId}_gap_${after}`,
+          executionId: request.params.executionId,
+          eventType: "execution.snapshot",
+          timestamp: new Date().toISOString(),
+          sequence: after + 1,
+          payload: { replayGap: true, snapshot: replay.snapshot },
+        });
+      }
       replay.events.forEach(send);
       while (!closed) {
         const current = runtime.replay(context.workspace.workspaceId, request.params.executionId, cursor);
