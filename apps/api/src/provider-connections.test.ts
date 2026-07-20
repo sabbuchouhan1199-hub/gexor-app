@@ -3,11 +3,11 @@ import { createHash } from "node:crypto";
 import { test } from "node:test";
 import { buildApp } from "./app.js";
 import { SqliteDatabase } from "./persistence/database.js";
-import { SqliteProviderConnectionRepository, WorkspaceProviderConnectionService, type ConnectionValidator, type ConnectionProviderResolver } from "./persistence/sqlite-provider-connections.js";
+import { SqliteProviderConnectionRepository, WorkspaceProviderConnectionService, type ConnectionHealthChecker, type ConnectionValidator, type ConnectionProviderResolver } from "./persistence/sqlite-provider-connections.js";
 import { SqliteRegistrationService } from "./persistence/sqlite-registration-service.js";
 import { SqliteConversationRepository, SqliteIdentityRepository, SqliteSessionRepository, SqliteWorkspaceRepository } from "./persistence/sqlite-repositories.js";
 import { SqliteMessageAcceptanceRepository, SqliteRuntimeExecutionStore } from "./persistence/sqlite-runtime-repository.js";
-import { createTextProvider } from "./providers/provider-factory.js";
+import { createWorkspaceProvider } from "./providers/provider-factory.js";
 import { loadApiConfig } from "./config.js";
 
 const now=()=>new Date("2026-07-18T15:00:00.000Z");
@@ -74,16 +74,17 @@ test("llama-cpp provider and model are exposed via the catalogue endpoint", asyn
   db.close();
 });
 
-test("llama-cpp connection can be created, validated, and selected when TEXT_PROVIDER matches", async()=>{
+test("llama-cpp connection resolves to LlamaCppProvider even when startup TEXT_PROVIDER is gemini", async()=>{
   const db=new SqliteDatabase({filename:":memory:",now}); db.migrate(); const makeId=ids();
   const reg=new SqliteRegistrationService(db,{passwordHasher,tokenGenerator,now,createId:makeId});
   const user=await reg.register({displayName:"Test",email:"llama-test@example.invalid",password:"valid-passphrase"});
   const repo=new SqliteProviderConnectionRepository(db,{now,createId:makeId});
-  const validator:ConnectionValidator=async({providerKey,credentialReference})=>
-    credentialReference==="local-env:configured"&&providerKey==="llama-cpp";
+  const config=loadApiConfig({TEXT_PROVIDER:"gemini",LLAMA_CPP_BASE_URL:"http://127.0.0.1:8080/v1"});
+  const validator:ConnectionValidator=async({credentialReference})=>
+    credentialReference==="local-env:configured";
   const resolver:ConnectionProviderResolver=async({providerKey,modelId,credentialReference})=>{
-    if(credentialReference!=="local-env:configured"||providerKey!=="llama-cpp") throw new Error("denied");
-    return createTextProvider(loadApiConfig({TEXT_PROVIDER:"llama-cpp",LLAMA_CPP_BASE_URL:"http://127.0.0.1:8080/v1",LLAMA_CPP_MODEL:modelId}));
+    if(credentialReference!=="local-env:configured") throw new Error("denied");
+    return createWorkspaceProvider(config, providerKey, modelId);
   };
   const service=new WorkspaceProviderConnectionService(repo,validator,resolver);
   const conn=repo.create(user.workspace.workspaceId,user.user.userId,"llama-cpp","local-env:configured");
@@ -109,5 +110,101 @@ test("llama-cpp connection rejects unknown or mismatched models", async()=>{
   repo.recordValidation(user.workspace.workspaceId,conn.connectionId,user.user.userId,true);
   assert.equal(repo.select(user.workspace.workspaceId,conn.connectionId,"nonexistent-model",user.user.userId),false);
   assert.equal(repo.select(user.workspace.workspaceId,conn.connectionId,"ollama:qwen3-0.6b",user.user.userId),false);
+  db.close();
+});
+
+test("connection validated against reachable llama-cpp is healthy", async()=>{
+  const db=new SqliteDatabase({filename:":memory:",now}); db.migrate(); const makeId=ids();
+  const reg=new SqliteRegistrationService(db,{passwordHasher,tokenGenerator,now,createId:makeId});
+  const user=await reg.register({displayName:"Test",email:"llama-healthy@example.invalid",password:"valid-passphrase"});
+  const repo=new SqliteProviderConnectionRepository(db,{now,createId:makeId});
+  const config=loadApiConfig({TEXT_PROVIDER:"gemini",LLAMA_CPP_BASE_URL:"http://127.0.0.1:8080/v1"});
+  const healthChecker:ConnectionHealthChecker=async({providerKey})=>{
+    if(providerKey!=="llama-cpp") return false;
+    const res=await fetch("http://127.0.0.1:8080/health",{signal:AbortSignal.timeout(5_000)});
+    return res.ok;
+  };
+  const service=new WorkspaceProviderConnectionService(repo,async({credentialReference})=>credentialReference==="local-env:configured",async({providerKey,modelId,credentialReference})=>{if(credentialReference!=="local-env:configured")throw new Error("denied");return createWorkspaceProvider(config,providerKey,modelId);},healthChecker);
+  const conn=repo.create(user.workspace.workspaceId,user.user.userId,"llama-cpp","local-env:configured");
+  const validated=await service.validate(user.workspace.workspaceId,conn.connectionId,user.user.userId);
+  assert.equal(validated?.status,"active");
+  const routing=repo.routing(user.workspace.workspaceId);
+  assert.equal(routing.length,1);
+  assert.equal(routing[0]?.healthState,"healthy");
+  db.close();
+});
+
+test("connection validated against unreachable provider records unhealthy", async()=>{
+  const db=new SqliteDatabase({filename:":memory:",now}); db.migrate(); const makeId=ids();
+  const reg=new SqliteRegistrationService(db,{passwordHasher,tokenGenerator,now,createId:makeId});
+  const user=await reg.register({displayName:"Test",email:"llama-unreachable@example.invalid",password:"valid-passphrase"});
+  const repo=new SqliteProviderConnectionRepository(db,{now,createId:makeId});
+  const config=loadApiConfig({TEXT_PROVIDER:"gemini",LLAMA_CPP_BASE_URL:"http://127.0.0.1:1/v1"});
+  const healthChecker:ConnectionHealthChecker=async({providerKey})=>{
+    if(providerKey!=="llama-cpp") return false;
+    try{const res=await fetch("http://127.0.0.1:1/health",{signal:AbortSignal.timeout(2_000)});return res.ok;}
+    catch{return false;}
+  };
+  const service=new WorkspaceProviderConnectionService(repo,async({credentialReference})=>credentialReference==="local-env:configured",async({providerKey,modelId,credentialReference})=>{if(credentialReference!=="local-env:configured")throw new Error("denied");return createWorkspaceProvider(config,providerKey,modelId);},healthChecker);
+  const conn=repo.create(user.workspace.workspaceId,user.user.userId,"llama-cpp","local-env:configured");
+  const validated=await service.validate(user.workspace.workspaceId,conn.connectionId,user.user.userId);
+  assert.equal(validated?.status,"active");
+  const routing=repo.routing(user.workspace.workspaceId);
+  assert.equal(routing.length,1);
+  assert.equal(routing[0]?.healthState,"unhealthy");
+  db.close();
+});
+
+test("wrong credential reference is rejected before health check", async()=>{
+  const db=new SqliteDatabase({filename:":memory:",now}); db.migrate(); const makeId=ids();
+  const reg=new SqliteRegistrationService(db,{passwordHasher,tokenGenerator,now,createId:makeId});
+  const user=await reg.register({displayName:"Test",email:"wrong-cred@example.invalid",password:"valid-passphrase"});
+  const repo=new SqliteProviderConnectionRepository(db,{now,createId:makeId});
+  let healthCalled=false;
+  const healthChecker:ConnectionHealthChecker=async()=>{healthCalled=true;return true;};
+  const service=new WorkspaceProviderConnectionService(repo,async({credentialReference})=>credentialReference==="valid-ref",async()=>{throw new Error("should not be called");},healthChecker);
+  const conn=repo.create(user.workspace.workspaceId,user.user.userId,"llama-cpp","invalid-ref");
+  const validated=await service.validate(user.workspace.workspaceId,conn.connectionId,user.user.userId);
+  assert.equal(validated?.status,"invalid");
+  assert.equal(healthCalled,false);
+  db.close();
+});
+
+test("Gemini credential requirement returns unhealthy when key is absent", async()=>{
+  const db=new SqliteDatabase({filename:":memory:",now}); db.migrate(); const makeId=ids();
+  const reg=new SqliteRegistrationService(db,{passwordHasher,tokenGenerator,now,createId:makeId});
+  const user=await reg.register({displayName:"Test",email:"gemini-no-key@example.invalid",password:"valid-passphrase"});
+  const repo=new SqliteProviderConnectionRepository(db,{now,createId:makeId});
+  const healthChecker:ConnectionHealthChecker=async({providerKey})=>{
+    if(providerKey!=="gemini") return false;
+    return false;
+  };
+  const service=new WorkspaceProviderConnectionService(repo,async({credentialReference})=>credentialReference==="local-env:configured",async()=>{throw new Error("should not be called");},healthChecker);
+  const conn=repo.create(user.workspace.workspaceId,user.user.userId,"gemini","local-env:configured");
+  const validated=await service.validate(user.workspace.workspaceId,conn.connectionId,user.user.userId);
+  assert.equal(validated?.status,"active");
+  const routing=repo.routing(user.workspace.workspaceId);
+  assert.equal(routing[0]?.healthState,"unhealthy");
+  db.close();
+});
+
+test("Ollama validated with Gemini startup uses provider-specific health check", async()=>{
+  const db=new SqliteDatabase({filename:":memory:",now}); db.migrate(); const makeId=ids();
+  const reg=new SqliteRegistrationService(db,{passwordHasher,tokenGenerator,now,createId:makeId});
+  const user=await reg.register({displayName:"Test",email:"ollama-check@example.invalid",password:"valid-passphrase"});
+  const repo=new SqliteProviderConnectionRepository(db,{now,createId:makeId});
+  const config=loadApiConfig({TEXT_PROVIDER:"gemini"});
+  let checkedProvider="";
+  const healthChecker:ConnectionHealthChecker=async({providerKey})=>{
+    checkedProvider=providerKey;
+    return providerKey==="ollama";
+  };
+  const service=new WorkspaceProviderConnectionService(repo,async({credentialReference})=>credentialReference==="local-env:configured",async({providerKey,modelId,credentialReference})=>{if(credentialReference!=="local-env:configured")throw new Error("denied");return createWorkspaceProvider(config,providerKey,modelId);},healthChecker);
+  const conn=repo.create(user.workspace.workspaceId,user.user.userId,"ollama","local-env:configured");
+  const validated=await service.validate(user.workspace.workspaceId,conn.connectionId,user.user.userId);
+  assert.equal(validated?.status,"active");
+  assert.equal(checkedProvider,"ollama");
+  const routing=repo.routing(user.workspace.workspaceId);
+  assert.equal(routing[0]?.healthState,"healthy");
   db.close();
 });

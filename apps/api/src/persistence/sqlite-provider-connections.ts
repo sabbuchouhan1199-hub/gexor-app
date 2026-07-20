@@ -8,6 +8,7 @@ type ResolvedSelection = InternalConnection & { modelId: string; modelKey: strin
 type ModelRow = { model_key: string; provider_key: string; provider_model_id: string };
 export type ConnectionValidator = (input: { providerKey: string; credentialReference: string }) => Promise<boolean>;
 export type ConnectionProviderResolver = (input: { providerKey: string; modelId: string; credentialReference: string }) => Promise<TextProvider>;
+export type ConnectionHealthChecker = (input: { providerKey: string }) => Promise<boolean>;
 
 export class SqliteProviderConnectionRepository {
   constructor(private readonly database: SqliteDatabase, private readonly options: { now?: () => Date; createId?: () => string } = {}) {}
@@ -110,15 +111,28 @@ export class SqliteProviderConnectionRepository {
 }
 
 export class WorkspaceProviderConnectionService {
-  constructor(private readonly repository: SqliteProviderConnectionRepository, private readonly validator: ConnectionValidator, private readonly resolver: ConnectionProviderResolver) {}
+  constructor(
+    private readonly repository: SqliteProviderConnectionRepository,
+    private readonly validator: ConnectionValidator,
+    private readonly resolver: ConnectionProviderResolver,
+    private readonly healthChecker?: ConnectionHealthChecker,
+  ) {}
   async validate(workspaceId:string,id:string,actor:string) {
     const connection=this.repository.internal(workspaceId,id); if(!connection || connection.status==="revoked") return undefined;
-    const started=Date.now(); let valid=false;
+    const started=Date.now(); let valid=false; let healthy=false;
     try { valid=await this.validator(connection); }
     catch { valid=false; }
-    const result=this.repository.recordValidation(workspaceId,id,actor,valid);
-    this.repository.recordHealth(workspaceId,id,valid?"healthy":"unhealthy",Date.now()-started,valid?undefined:"PROVIDER_CONNECTION_INVALID");
-    return result;
+    this.repository.recordValidation(workspaceId,id,actor,valid);
+    if(valid) {
+      if(this.healthChecker) {
+        try { healthy=await this.healthChecker(connection); }
+        catch { healthy=false; }
+      } else {
+        healthy=true;
+      }
+    }
+    this.repository.recordHealth(workspaceId,id,healthy?"healthy":"unhealthy",Date.now()-started,healthy?undefined:"PROVIDER_HEALTH_CHECK_FAILED");
+    return this.repository.get(workspaceId,id);
   }
   async providerForWorkspace(workspaceId:string,attempt=1): Promise<TextProvider> {
     const candidates=this.repository.routeCandidates(workspaceId);

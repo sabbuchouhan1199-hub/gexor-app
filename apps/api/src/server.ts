@@ -17,10 +17,11 @@ import {
   SqliteRuntimeExecutionStore,
 } from "./persistence/sqlite-runtime-repository.js";
 import {
+  type ConnectionHealthChecker,
   SqliteProviderConnectionRepository,
   WorkspaceProviderConnectionService,
 } from "./persistence/sqlite-provider-connections.js";
-import { createTextProvider } from "./providers/provider-factory.js";
+import { createTextProvider, createWorkspaceProvider } from "./providers/provider-factory.js";
 
 async function startServer(): Promise<void> {
   const config = loadApiConfig();
@@ -31,27 +32,40 @@ async function startServer(): Promise<void> {
   const productionRuntime = new SqliteProductionRuntimeRepository(database, executionStore);
   const attachments = new SqliteAttachmentRepository(database, { root: config.uploadPath, maxBytes: config.maxUploadBytes, maxWorkspaceBytes: config.maxWorkspaceUploadBytes, maxConversationFiles: config.maxConversationFiles });
   const providerConnections = new SqliteProviderConnectionRepository(database);
+  const providerHealthChecker: ConnectionHealthChecker = async ({ providerKey }) => {
+    switch (providerKey) {
+      case "llama-cpp": {
+        const baseUrl = config.llamaCppBaseUrl.replace(/\/v1$/i, "");
+        const res = await fetch(`${baseUrl}/health`, { signal: AbortSignal.timeout(5_000) });
+        return res.ok;
+      }
+      case "ollama": {
+        const res = await fetch(config.ollamaBaseUrl, { signal: AbortSignal.timeout(5_000) });
+        return res.ok;
+      }
+      case "gemini": {
+        if (!config.geminiApiKey) return false;
+        const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models", {
+          headers: { "x-goog-api-key": config.geminiApiKey },
+          signal: AbortSignal.timeout(5_000),
+        });
+        return res.ok;
+      }
+      default:
+        return false;
+    }
+  };
   const workspaceProviders = new WorkspaceProviderConnectionService(
     providerConnections,
-    async ({ providerKey, credentialReference }) =>
-      credentialReference === "local-env:configured" && providerKey === config.textProvider,
+    async ({ credentialReference }) =>
+      credentialReference === "local-env:configured",
     async ({ providerKey, modelId, credentialReference }) => {
-      if (credentialReference !== "local-env:configured" || providerKey !== config.textProvider) {
+      if (credentialReference !== "local-env:configured") {
         throw new Error("The protected credential reference cannot be resolved.");
       }
-      const modelOverride = (() => {
-        switch (providerKey) {
-          case "ollama": return { ollamaModel: modelId };
-          case "gemini": return { geminiModel: modelId };
-          case "llama-cpp": return { llamaCppModel: modelId };
-        }
-      })();
-      return createTextProvider({
-        ...config,
-        textProvider: providerKey as typeof config.textProvider,
-        ...modelOverride,
-      });
+      return createWorkspaceProvider(config, providerKey, modelId);
     },
+    providerHealthChecker,
   );
   const app = buildApp({
     textProvider: createTextProvider(config),
