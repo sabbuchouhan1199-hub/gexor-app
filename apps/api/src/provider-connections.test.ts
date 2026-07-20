@@ -113,24 +113,26 @@ test("llama-cpp connection rejects unknown or mismatched models", async()=>{
   db.close();
 });
 
-test("connection validated against reachable llama-cpp is healthy", async()=>{
-  const db=new SqliteDatabase({filename:":memory:",now}); db.migrate(); const makeId=ids();
-  const reg=new SqliteRegistrationService(db,{passwordHasher,tokenGenerator,now,createId:makeId});
-  const user=await reg.register({displayName:"Test",email:"llama-healthy@example.invalid",password:"valid-passphrase"});
-  const repo=new SqliteProviderConnectionRepository(db,{now,createId:makeId});
-  const config=loadApiConfig({TEXT_PROVIDER:"gemini",LLAMA_CPP_BASE_URL:"http://127.0.0.1:8080/v1"});
-  const healthChecker:ConnectionHealthChecker=async({providerKey})=>{
-    if(providerKey!=="llama-cpp") return false;
-    const res=await fetch("http://127.0.0.1:8080/health",{signal:AbortSignal.timeout(5_000)});
-    return res.ok;
+test("connection validated with a healthy llama-cpp check is marked healthy", async () => {
+  const db = new SqliteDatabase({ filename: ":memory:", now }); db.migrate(); const makeId = ids();
+  const reg = new SqliteRegistrationService(db, { passwordHasher, tokenGenerator, now, createId: makeId });
+  const user = await reg.register({ displayName: "Test", email: "llama-healthy@example.invalid", password: "valid-passphrase" });
+  const repo = new SqliteProviderConnectionRepository(db, { now, createId: makeId });
+  const config = loadApiConfig({ TEXT_PROVIDER: "gemini", LLAMA_CPP_BASE_URL: "http://127.0.0.1:8080/v1" });
+  let healthCheckerCalled = false;
+  const healthChecker: ConnectionHealthChecker = async ({ providerKey }) => {
+    if (providerKey !== "llama-cpp") return false;
+    healthCheckerCalled = true;
+    return true;
   };
-  const service=new WorkspaceProviderConnectionService(repo,async({credentialReference})=>credentialReference==="local-env:configured",async({providerKey,modelId,credentialReference})=>{if(credentialReference!=="local-env:configured")throw new Error("denied");return createWorkspaceProvider(config,providerKey,modelId);},healthChecker);
-  const conn=repo.create(user.workspace.workspaceId,user.user.userId,"llama-cpp","local-env:configured");
-  const validated=await service.validate(user.workspace.workspaceId,conn.connectionId,user.user.userId);
-  assert.equal(validated?.status,"active");
-  const routing=repo.routing(user.workspace.workspaceId);
-  assert.equal(routing.length,1);
-  assert.equal(routing[0]?.healthState,"healthy");
+  const service = new WorkspaceProviderConnectionService(repo, async ({ credentialReference }) => credentialReference === "local-env:configured", async ({ providerKey, modelId, credentialReference }) => { if (credentialReference !== "local-env:configured") throw new Error("denied"); return createWorkspaceProvider(config, providerKey, modelId); }, healthChecker);
+  const conn = repo.create(user.workspace.workspaceId, user.user.userId, "llama-cpp", "local-env:configured");
+  const validated = await service.validate(user.workspace.workspaceId, conn.connectionId, user.user.userId);
+  assert.equal(validated?.status, "active");
+  assert.equal(healthCheckerCalled, true);
+  const routing = repo.routing(user.workspace.workspaceId);
+  assert.equal(routing.length, 1);
+  assert.equal(routing[0]?.healthState, "healthy");
   db.close();
 });
 
