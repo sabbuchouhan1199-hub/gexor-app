@@ -14,7 +14,7 @@ This checklist defines the mandatory verification gates required before Gexor v2
 ### 2. Automated Testing Baseline
 - [x] Workspace typecheck passes cleanly (`npm run typecheck`).
 - [x] All API unit and integration tests pass hermetically (`npx tsx --test apps/api/src/*.test.ts`). Total API tests: 200.
-- [x] All Web component and integration tests pass (`npm run test --workspace apps/web`). Total Web tests: 6.
+- [x] All Web component and integration tests pass (`npm run test --workspace apps/web`). Total Web tests: 7.
 - [x] Full local gate passes (`npm run verify`).
 
 ### 3. Production Build Integrity

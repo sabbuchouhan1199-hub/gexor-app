@@ -25,7 +25,7 @@
 | `V22-UI-04` | `REQ-UX-007`, `REQ-MOB-001` | Mobile Conversation Navigation Drawer | `apps/web/src/Workspace.tsx`, `apps/web/src/styles.css` | `VERIFIED_COMPLETE` | None | `npm run test` | Part 2 |
 | `V22-UI-05` | `REQ-UX-008`, `REQ-ACC-001` | Modal Accessibility & Escape Key Handling | `apps/web/src/Workspace.tsx` | `VERIFIED_COMPLETE` | None | `npm run test` | Part 2 |
 | `V22-UI-06` | `REQ-UX-009`, `REQ-SEC-004` | Safe Markdown Code Block Rendering & Copy | `apps/web/src/Workspace.tsx` (lines 110-113) | `ACCEPTED_LIMITATION` | Document lightweight safe markdown parser boundary | `KNOWN-LIMITATIONS.md` review | Part 4 |
-| `V22-TEST-01` | `REQ-TST-002`, `REQ-TST-003` | Deterministic API & Web Test Suite | 200 API tests, 6 Web tests | `VERIFIED_COMPLETE` | None | `npm run verify` | Part 1 |
+| `V22-TEST-01` | `REQ-TST-002`, `REQ-TST-003` | Deterministic API & Web Test Suite | 200 API tests, 7 Web tests | `VERIFIED_COMPLETE` | None | `npm run verify` | Part 1 |
 | `V22-TEST-02` | `REQ-TST-004`, `REQ-TST-005` | Regression Tests for UI Fixes & Replay Gap | `apps/web/src/Workspace.test.tsx`, `apps/api/src/app.test.ts` | `VERIFIED_COMPLETE` | None | `npm run test` | Part 2 |
 | `V22-OPS-01` | `REQ-OPS-001`, `REQ-SEC-003` | Structured JSON Logging & Header Redaction | `apps/api/src/app.ts` (line 279) | `VERIFIED_COMPLETE` | None | `npm run test` | Part 1 |
 | `V22-OPS-02` | `REQ-OPS-002`, `REQ-OPS-003` | Protected Metrics Endpoint (`/api/v1/metrics`) | `apps/api/src/app.ts` (lines 440-460) | `VERIFIED_COMPLETE` | None | `npm run test` | Part 1 |

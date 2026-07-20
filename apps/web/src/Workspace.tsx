@@ -18,7 +18,24 @@ export function ProductionWorkspace({ current, client, logout, openProviders }: 
   const [busy, setBusy] = useState(false); const [error, setError] = useState("");
   const [activeExecution, setActiveExecution] = useState<string>(); const [streamingText, setStreamingText] = useState("");
   const [usage, setUsage] = useState<UsageDashboard>(); const [showUsage, setShowUsage] = useState(false);
+  const [showSidebarMobile, setShowSidebarMobile] = useState(false);
+  const modalCloseRef = useRef<HTMLButtonElement>(null);
   const streamController = useRef<AbortController | undefined>(undefined);
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setShowUsage(false);
+        setShowSidebarMobile(false);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  useEffect(() => {
+    if (showUsage) modalCloseRef.current?.focus();
+  }, [showUsage]);
 
   const loadConversations = useCallback(async () => {
     const result = await client.request<ConversationListResponse>(`/api/v1/workspaces/${current.workspace.workspaceId}/conversations`);
@@ -31,7 +48,7 @@ export function ProductionWorkspace({ current, client, logout, openProviders }: 
 
   async function createConversation() {
     const title = prompt("Conversation title", `Conversation ${conversations.length + 1}`)?.trim(); if (!title) return;
-    try { const item = await client.request<ConversationSummary>(`/api/v1/workspaces/${current.workspace.workspaceId}/conversations`, { method: "POST", body: JSON.stringify({ title }) }); await loadConversations(); setSelected(item.conversationId); }
+    try { const item = await client.request<ConversationSummary>(`/api/v1/workspaces/${current.workspace.workspaceId}/conversations`, { method: "POST", body: JSON.stringify({ title }) }); await loadConversations(); setSelected(item.conversationId); setShowSidebarMobile(false); }
     catch (value) { setError(message(value)); }
   }
   async function renameConversation() {
@@ -82,18 +99,19 @@ export function ProductionWorkspace({ current, client, logout, openProviders }: 
   async function openUsage() { try { setUsage(await client.request<UsageDashboard>(`/api/v1/workspaces/${current.workspace.workspaceId}/usage`)); setShowUsage(true); } catch (value) { setError(message(value)); } }
 
   const title = conversations.find((item) => item.conversationId === selected)?.title ?? "New conversation";
-  return <div className="app-shell"><header><div><span className="logo small">G</span><strong>Gexor</strong></div><nav><button className="active">Chat</button><button onClick={openProviders}>Providers</button><button onClick={() => void openUsage()}>Usage</button><button onClick={logout}>Log out</button></nav></header>
-    <main className="workspace"><aside><div className="aside-head"><span>Conversations</span><button onClick={() => void createConversation()} aria-label="New conversation">＋</button></div>
+  return <div className="app-shell"><header><div><button className="mobile-drawer-toggle" aria-label="Toggle navigation menu" onClick={() => setShowSidebarMobile((open) => !open)}>☰</button><span className="logo small">G</span><strong>Gexor</strong></div><nav><button className="active">Chat</button><button onClick={openProviders}>Providers</button><button onClick={() => void openUsage()}>Usage</button><button onClick={logout}>Log out</button></nav></header>
+    {showSidebarMobile && <div className="sidebar-backdrop" onClick={() => setShowSidebarMobile(false)} aria-hidden="true" />}
+    <main className="workspace"><aside className={showSidebarMobile ? "sidebar open-mobile" : "sidebar"}><div className="aside-head"><span>Conversations</span><button onClick={() => void createConversation()} aria-label="New conversation">＋</button></div>
       <form className="history-search" onSubmit={searchHistory}><input aria-label="Search history" value={query} onChange={(event) => setQuery(event.target.value)} maxLength={200} placeholder="Search history"/><button>Search</button></form>
-      {conversations.length === 0 ? <p className="muted">Start a conversation below.</p> : conversations.map((item) => <button className={selected === item.conversationId ? "conversation active" : "conversation"} onClick={() => setSelected(item.conversationId)} key={item.conversationId}>{item.title}</button>)}</aside>
+      {conversations.length === 0 ? <p className="muted">Start a conversation below.</p> : conversations.map((item) => <button className={selected === item.conversationId ? "conversation active" : "conversation"} onClick={() => { setSelected(item.conversationId); setShowSidebarMobile(false); }} key={item.conversationId}>{item.title}</button>)}</aside>
       <section className="chat"><div className="chat-title"><div><h1>{title}</h1><p>{current.workspace.name}</p></div><div className="chat-actions"><button onClick={() => void renameConversation()} disabled={!selected}>Rename</button><button onClick={() => void deleteConversation()} disabled={!selected}>Delete</button><button className="mobile-new" onClick={() => void createConversation()}>New</button></div></div>
-        <div className="attachments"><label className="attachment-upload">Attach PDF, TXT, or Markdown context<input type="file" accept=".pdf,.txt,.md,text/plain,text/markdown,application/pdf" onChange={(event) => void upload(event)} disabled={!selected}/></label>{files.map((file) => <span key={file.fileId}>{file.displayName} · {file.extractionState}<button aria-label={`Remove ${file.displayName}`} onClick={() => void removeFile(file.fileId)}>×</button></span>)}</div>
+        <div className="attachments"><label className="attachment-upload" title="Upload PDF, TXT, or Markdown files for plain-text reference grounding (no OCR or vector RAG).">Attach PDF, TXT, or Markdown context (plain-text grounding)<input type="file" accept=".pdf,.txt,.md,text/plain,text/markdown,application/pdf" onChange={(event) => void upload(event)} disabled={!selected}/></label>{files.map((file) => <span key={file.fileId}>{file.displayName} · {file.extractionState}<button aria-label={`Remove ${file.displayName}`} onClick={() => void removeFile(file.fileId)}>×</button></span>)}</div>
         <div className="messages">{messages.length === 0 && !streamingText ? <div className="empty"><span className="logo">G</span><h2>What would you like to explore?</h2><p>Your conversation will remain in this workspace after refresh.</p></div> : messages.map((item) => <MessageView key={item.messageId} item={item} userName={current.user.displayName} busy={busy} action={executionAction}/>) }
           {streamingText && <article className="assistant streaming"><span>Gexor · streaming</span><SafeMarkdown text={streamingText}/></article>}</div>
         {error && <div className="error banner" role="alert">{error}<button onClick={() => setError("")}>Dismiss</button></div>}
         <form className="composer" onSubmit={send}><textarea value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Message Gexor…" rows={1} maxLength={MAX_MESSAGE_TEXT_LENGTH} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }}/>{activeExecution ? <button type="button" className="cancel" onClick={() => void cancel()}>Stop</button> : <button className="send" disabled={busy || !draft.trim()}>{busy ? "…" : "↑"}</button>}</form>
       </section></main>
-    {showUsage && usage && <div className="modal" role="dialog" aria-modal="true"><section><button className="modal-close" aria-label="Close usage modal" onClick={() => setShowUsage(false)}>Close</button><h2>Usage — last 30 days</h2><div className="usage-grid"><strong>{usage.totals.requests}<small>Requests</small></strong><strong>{usage.totals.totalTokens}<small>Tokens</small></strong><strong>{usage.pricingVersion === "pricing_unpriced_v1" ? "Unpriced" : `$${(usage.totals.estimatedCostMicros / 1_000_000).toFixed(2)}`}<small>{usage.pricingVersion === "pricing_unpriced_v1" ? "Pricing model" : "Estimated spend"}</small></strong><strong>{usage.totals.successful}<small>Successful</small></strong></div><p>Measured: {usage.usageClassification.measured}; estimated: {usage.usageClassification.estimated}; unavailable: {usage.usageClassification.unavailable}</p></section></div>}
+    {showUsage && usage && <div className="modal" role="dialog" aria-modal="true" aria-labelledby="usage-modal-title" tabIndex={-1}><section><button ref={modalCloseRef} className="modal-close" aria-label="Close usage modal" onClick={() => setShowUsage(false)}>Close</button><h2 id="usage-modal-title">Usage — last 30 days</h2><div className="usage-grid"><strong>{usage.totals.requests}<small>Requests</small></strong><strong>{usage.totals.totalTokens}<small>Tokens</small></strong><strong>{usage.pricingVersion === "pricing_unpriced_v1" ? "Unpriced" : `$${(usage.totals.estimatedCostMicros / 1_000_000).toFixed(2)}`}<small>{usage.pricingVersion === "pricing_unpriced_v1" ? "Pricing model" : "Estimated spend"}</small></strong><strong>{usage.totals.successful}<small>Successful</small></strong></div><p>Measured: {usage.usageClassification.measured}; estimated: {usage.usageClassification.estimated}; unavailable: {usage.usageClassification.unavailable}</p></section></div>}
   </div>;
 }
 

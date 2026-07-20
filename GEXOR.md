@@ -227,8 +227,8 @@ Current verified command results for Gexor v2.2.0:
 
 - API typecheck (`npm run typecheck`): passed cleanly across `@gexor/api`, `@gexor/web`, `@gexor/contracts`.
 - API tests (`npx tsx --test`): passed, 200 tests.
-- Web typecheck & tests (`vitest run`): passed, 6 tests.
-- Total workspace tests: 206 tests.
+- Web typecheck & tests (`vitest run`): passed, 7 tests.
+- Total workspace tests: 207 tests.
 - Production build (`npm run build`): passed.
 - Full verification gate (`npm run verify`): passed.
 

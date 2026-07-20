@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { expect, it } from "vitest";
 import { ApiClient } from "./api/client";
 import { ProductionWorkspace, SafeMarkdown } from "./Workspace";
@@ -21,4 +21,25 @@ it("enforces MAX_MESSAGE_TEXT_LENGTH (4000) on composer textarea", () => {
   render(<ProductionWorkspace current={auth} client={new ApiClient("w1")} logout={() => {}} openProviders={() => {}} />);
   const textarea = screen.getByPlaceholderText("Message Gexor…");
   expect(textarea).toHaveAttribute("maxLength", "4000");
+});
+
+it("toggles mobile sidebar drawer and closes via Escape key", async () => {
+  const auth = {
+    user: { userId: "u1", email: "e@x.com", displayName: "User", status: "active" as const, createdAt: "", updatedAt: "" },
+    session: { sessionId: "s1", userId: "u1", status: "active" as const, createdAt: "", expiresAt: "", lastSeenAt: "" },
+    workspace: { workspaceId: "w1", ownerUserId: "u1", name: "Workspace", status: "active" as const, createdAt: "", updatedAt: "" },
+    membership: { membershipId: "m1", workspaceId: "w1", userId: "u1", role: "owner" as const, status: "active" as const, createdAt: "", updatedAt: "" },
+  };
+  const { container } = render(<ProductionWorkspace current={auth} client={new ApiClient("w1")} logout={() => {}} openProviders={() => {}} />);
+  const toggleBtn = screen.getByRole("button", { name: "Toggle navigation menu" });
+  expect(toggleBtn).toBeInTheDocument();
+  const aside = container.querySelector("aside");
+  expect(aside).not.toHaveClass("open-mobile");
+
+  fireEvent.click(toggleBtn);
+  expect(aside).toHaveClass("open-mobile");
+
+  // Pressing Escape closes the drawer
+  fireEvent.keyDown(window, { key: "Escape" });
+  expect(aside).not.toHaveClass("open-mobile");
 });
