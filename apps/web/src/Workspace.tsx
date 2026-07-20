@@ -1,8 +1,8 @@
 import { FormEvent, Fragment, useCallback, useEffect, useRef, useState } from "react";
-import type {
+import {
   ConversationAttachment, ConversationListResponse, ConversationMessage, ConversationMessagesResponse,
   ConversationSearchResponse, ConversationSummary, CurrentUserResponse, ExecutionStreamEvent,
-  RuntimeExecutionResponse, UsageDashboard,
+  MAX_MESSAGE_TEXT_LENGTH, RuntimeExecutionResponse, UsageDashboard,
 } from "@gexor/contracts";
 import { ApiClient, ApiError } from "./api/client";
 
@@ -91,7 +91,7 @@ export function ProductionWorkspace({ current, client, logout, openProviders }: 
         <div className="messages">{messages.length === 0 && !streamingText ? <div className="empty"><span className="logo">G</span><h2>What would you like to explore?</h2><p>Your conversation will remain in this workspace after refresh.</p></div> : messages.map((item) => <MessageView key={item.messageId} item={item} userName={current.user.displayName} busy={busy} action={executionAction}/>) }
           {streamingText && <article className="assistant streaming"><span>Gexor · streaming</span><SafeMarkdown text={streamingText}/></article>}</div>
         {error && <div className="error banner" role="alert">{error}<button onClick={() => setError("")}>Dismiss</button></div>}
-        <form className="composer" onSubmit={send}><textarea value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Message Gexor…" rows={1} maxLength={12000} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }}/>{activeExecution ? <button type="button" className="cancel" onClick={() => void cancel()}>Stop</button> : <button className="send" disabled={busy || !draft.trim()}>{busy ? "…" : "↑"}</button>}</form>
+        <form className="composer" onSubmit={send}><textarea value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Message Gexor…" rows={1} maxLength={MAX_MESSAGE_TEXT_LENGTH} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }}/>{activeExecution ? <button type="button" className="cancel" onClick={() => void cancel()}>Stop</button> : <button className="send" disabled={busy || !draft.trim()}>{busy ? "…" : "↑"}</button>}</form>
       </section></main>
     {showUsage && usage && <div className="modal" role="dialog" aria-modal="true"><section><button className="modal-close" onClick={() => setShowUsage(false)}>Close</button><h2>Usage — last 30 days</h2><div className="usage-grid"><strong>{usage.totals.requests}<small>Requests</small></strong><strong>{usage.totals.totalTokens}<small>Tokens</small></strong><strong>${(usage.totals.estimatedCostMicros / 1_000_000).toFixed(2)}<small>Estimated spend</small></strong><strong>{usage.totals.successful}<small>Successful</small></strong></div><p>Measured: {usage.usageClassification.measured}; estimated: {usage.usageClassification.estimated}; unavailable: {usage.usageClassification.unavailable}</p></section></div>}
   </div>;
@@ -102,8 +102,8 @@ function MessageView({ item, userName, busy, action }: { item: ConversationMessa
   return <article className={item.role}><span>{item.role === "user" ? userName : "Gexor"}</span>{item.role === "assistant" ? <SafeMarkdown text={item.text}/> : <p>{item.text}</p>}
     {execution && !terminal.has(execution.state) && <small>Execution: {execution.state}</small>}
     {execution?.failure && <small>{execution.failure.detail}</small>}
-    {execution && ["failed", "timed_out", "cancelled"].includes(execution.state) && <button disabled={busy} onClick={() => void action(execution, "retry")}>Retry</button>}
-    {execution?.state === "completed" && <button disabled={busy} onClick={() => void action(execution, "regenerate")}>Regenerate</button>}
+    {item.role === "assistant" && execution && ["failed", "timed_out", "cancelled"].includes(execution.state) && <button disabled={busy} onClick={() => void action(execution, "retry")}>Retry</button>}
+    {item.role === "assistant" && execution?.state === "completed" && <button disabled={busy} onClick={() => void action(execution, "regenerate")}>Regenerate</button>}
   </article>;
 }
 

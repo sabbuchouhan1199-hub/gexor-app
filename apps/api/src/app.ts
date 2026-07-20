@@ -7,22 +7,23 @@ import Fastify, {
   type FastifyRequest,
 } from "fastify";
 
-import type {
-  ApiProblem,
-  ApiProblemCode,
-  AuthenticationResponse,
-  ChatRequest,
-  ChatResponse,
-  ConversationSummary,
-  ConversationListResponse,
-  ConversationMessagesResponse,
-  CreateConversationRequest,
-  CurrentUserResponse,
-  LoginRequest,
-  MessageSubmissionRequest,
-  MessageSubmissionResponse,
-  RegisterRequest,
-  RuntimeExecutionResponse,
+import {
+  MAX_MESSAGE_TEXT_LENGTH,
+  type ApiProblem,
+  type ApiProblemCode,
+  type AuthenticationResponse,
+  type ChatRequest,
+  type ChatResponse,
+  type ConversationSummary,
+  type ConversationListResponse,
+  type ConversationMessagesResponse,
+  type CreateConversationRequest,
+  type CurrentUserResponse,
+  type LoginRequest,
+  type MessageSubmissionRequest,
+  type MessageSubmissionResponse,
+  type RegisterRequest,
+  type RuntimeExecutionResponse,
 } from "@gexor/contracts";
 import { AuthDomainError } from "./auth/auth-errors.js";
 import { AuthenticationService } from "./auth/authentication-service.js";
@@ -168,7 +169,7 @@ const messageSubmissionSchema = {
         required: ["type", "text"],
         properties: {
           type: { type: "string", const: "text" },
-          text: { type: "string", minLength: 1, maxLength: 4000, pattern: "\\S" },
+          text: { type: "string", minLength: 1, maxLength: MAX_MESSAGE_TEXT_LENGTH, pattern: "\\S" },
         },
       },
     },

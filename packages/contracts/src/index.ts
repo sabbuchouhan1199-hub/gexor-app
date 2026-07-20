@@ -1,4 +1,4 @@
-﻿export type ChatRequest = {
+export type ChatRequest = {
   message: string;
 };
 
@@ -192,6 +192,8 @@ export type ConversationMessage = {
 };
 export type ConversationListResponse = { conversations: ConversationSummary[] };
 export type ConversationMessagesResponse = { messages: ConversationMessage[] };
+
+export const MAX_MESSAGE_TEXT_LENGTH = 4000;
 
 export type MessageSubmissionRequest = {
   content: [{ type: "text"; text: string }];
