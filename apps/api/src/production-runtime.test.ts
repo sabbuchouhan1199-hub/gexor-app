@@ -117,3 +117,37 @@ test("derived retry attempts are idempotent and budget limits are enforceable", 
   assert.equal(dashboard.budget?.state, "remaining");
   context.db.close();
 });
+
+test("SqliteProductionRuntimeRepository provides event-driven waitForEvent wakeup", async () => {
+  const context = await setup();
+  const start = Date.now();
+  const promise = context.runtime.waitForEvent("exec_wakeup_1", 5000);
+  context.runtime.notifyEvent("exec_wakeup_1");
+  await promise;
+  const elapsed = Date.now() - start;
+  assert.ok(elapsed < 1000, `Expected instant wakeup, got ${elapsed}ms`);
+  context.db.close();
+});
+
+test("RuntimeWorker records provider-reported measured usage when supplied", async () => {
+  const context = await setup();
+  const execution = await accept(context, "measured-usage", "test input");
+  const provider = {
+    async generateText() {
+      return {
+        provider: "fake",
+        model: "fake-model",
+        text: "response text",
+        usage: { inputTokens: 50, outputTokens: 100, measured: true },
+      };
+    },
+  };
+  const worker = new RuntimeWorker(context.runtime, context.store, async () => provider);
+  const worked = await worker.runOnce();
+  assert.equal(worked, true);
+  const dashboard = context.runtime.usageDashboard(context.registration.workspace.workspaceId, "2026-07-18T00:00:00.000Z", "2026-07-20T00:00:00.000Z");
+  assert.equal(dashboard.usageClassification.measured, 1);
+  assert.equal(dashboard.totals.inputTokens, 50);
+  assert.equal(dashboard.totals.outputTokens, 100);
+  context.db.close();
+});

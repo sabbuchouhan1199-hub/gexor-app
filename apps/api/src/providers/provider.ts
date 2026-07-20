@@ -7,6 +7,7 @@ export type GenerateTextResult = {
   provider: string;
   model: string;
   text: string;
+  usage?: { inputTokens?: number; outputTokens?: number; measured: boolean };
 };
 
 export type GenerateTextChunk = {

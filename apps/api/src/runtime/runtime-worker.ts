@@ -52,10 +52,12 @@ export class RuntimeWorker {
       this.runtime.appendEvent(job.executionId, job.workspaceId, "execution.started", { state: "dispatching", attempt: job.attempt });
       const provider = await this.providerForWorkspace(job.workspaceId, job.attempt);
       let text = "";
+      let usageInfo: { inputTokens?: number; outputTokens?: number; measured?: boolean } | undefined;
       if (provider.streamText) {
         for await (const chunk of provider.streamText({ input: job.input, signal: controller.signal })) {
           if (controller.signal.aborted || this.runtime.isCancellationRequested(job.executionId)) throw new WorkerCancellationError();
           providerName = chunk.provider; model = chunk.model;
+          if (chunk.usage) usageInfo = chunk.usage;
           if (chunk.delta) {
             text += chunk.delta;
             this.runtime.appendEvent(job.executionId, job.workspaceId, "response.delta", { delta: chunk.delta });
@@ -64,6 +66,7 @@ export class RuntimeWorker {
       } else {
         const result = await provider.generateText({ input: job.input, signal: controller.signal });
         providerName = result.provider; model = result.model; text = result.text;
+        if (result.usage) usageInfo = result.usage;
         this.runtime.appendEvent(job.executionId, job.workspaceId, "response.delta", { delta: result.text });
       }
       if (this.runtime.isCancellationRequested(job.executionId)) throw new WorkerCancellationError();
@@ -71,7 +74,12 @@ export class RuntimeWorker {
         provider: providerName, model, response: { text },
       })!;
       this.runtime.appendTerminalEvent(completed);
-      this.runtime.recordUsage(completed, "estimated", estimateTokens(job.input), estimateTokens(text), Math.max(0, job.attempt - 1));
+      const classification = (usageInfo?.measured !== false && (usageInfo?.inputTokens !== undefined || usageInfo?.outputTokens !== undefined))
+        ? "measured"
+        : "estimated";
+      const inputTokens = usageInfo?.inputTokens ?? estimateTokens(job.input);
+      const outputTokens = usageInfo?.outputTokens ?? estimateTokens(text);
+      this.runtime.recordUsage(completed, classification, inputTokens, outputTokens, Math.max(0, job.attempt - 1));
       this.runtime.recordProviderAttempt({ executionId: job.executionId, workspaceId: job.workspaceId, attemptNumber: job.attempt, providerKey: providerName, modelId: model, outcome: "completed", latencyMs: Date.now() - attemptStarted });
       this.runtime.finishJob(job.executionId, "completed");
     } catch (error) {
