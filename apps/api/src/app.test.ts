@@ -352,7 +352,6 @@ test("SSE event stream formats replay gap events as valid ExecutionStreamEvents"
   const identityRepository = new SqliteIdentityRepository(db);
   const sessionRepository = new SqliteSessionRepository(db);
   const runtimeApp = buildApp({
-    database: db,
     productionRuntime,
     messageAcceptanceRepository,
     conversationRepository,

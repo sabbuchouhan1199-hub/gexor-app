@@ -248,6 +248,7 @@ export type UpdateProviderRoutingRequest = { priority?: number; enabled?: boolea
 
 export type UsageClassification = "measured" | "estimated" | "unavailable";
 export type UsageDashboard = {
+  pricingVersion?: string;
   range: { from: string; to: string };
   totals: {
     requests: number; successful: number; failed: number; cancelled: number; timedOut: number;

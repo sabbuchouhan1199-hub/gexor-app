@@ -73,10 +73,10 @@
     "itemId": "V22-SSE-03",
     "governingRequirements": ["REQ-SSE-004", "REQ-UX-005"],
     "capability": "SSE Replay-Gap Compatibility with Web Client",
-    "currentEvidence": "apps/api/src/app.ts (line 787) vs apps/web/src/api/client.ts (line 27)",
-    "status": "NEEDS_CODE_FIX",
-    "requiredAction": "Emit formatted replay-gap SSE event and parse in web client",
-    "verificationMethod": "Integration test",
+    "currentEvidence": "apps/api/src/app.ts (line 787), apps/web/src/api/client.ts (line 27), app.test.ts",
+    "status": "VERIFIED_COMPLETE",
+    "requiredAction": "None",
+    "verificationMethod": "npm run test",
     "targetClosure": "Part 2"
   },
   {
@@ -144,9 +144,9 @@
     "governingRequirements": ["REQ-UX-006", "REQ-USG-005"],
     "capability": "Usage UI Display for Unpriced Pricing Version",
     "currentEvidence": "apps/web/src/Workspace.tsx (line 96)",
-    "status": "NEEDS_CODE_FIX",
-    "requiredAction": "Display 'Unpriced' instead of '$0.00' when pricing is unpriced",
-    "verificationMethod": "Web component test",
+    "status": "VERIFIED_COMPLETE",
+    "requiredAction": "None",
+    "verificationMethod": "npm run test",
     "targetClosure": "Part 2"
   },
   {
@@ -184,19 +184,19 @@
     "governingRequirements": ["REQ-UX-003", "REQ-RTM-006"],
     "capability": "Duplicate Regenerate Button Fix",
     "currentEvidence": "apps/web/src/Workspace.tsx (line 106)",
-    "status": "NEEDS_CODE_FIX",
-    "requiredAction": "Restrict Regenerate button to completed assistant messages only",
-    "verificationMethod": "Web component test",
+    "status": "VERIFIED_COMPLETE",
+    "requiredAction": "None",
+    "verificationMethod": "npm run test",
     "targetClosure": "Part 2"
   },
   {
     "itemId": "V22-UI-03",
     "governingRequirements": ["REQ-UX-004", "REQ-API-002"],
     "capability": "Message Input Length Contract Alignment (4000)",
-    "currentEvidence": "apps/web/src/Workspace.tsx (line 94: maxLength=12000) vs app.ts (line 171: maxLength=4000)",
-    "status": "NEEDS_CODE_FIX",
-    "requiredAction": "Align textarea maxLength to 4000 characters",
-    "verificationMethod": "Web component test",
+    "currentEvidence": "packages/contracts/src/index.ts, apps/api/src/app.ts, apps/web/src/Workspace.tsx",
+    "status": "VERIFIED_COMPLETE",
+    "requiredAction": "None",
+    "verificationMethod": "npm run test",
     "targetClosure": "Part 2"
   },
   {
@@ -244,8 +244,8 @@
     "governingRequirements": ["REQ-TST-004", "REQ-TST-005"],
     "capability": "Regression Tests for UI Fixes & Replay Gap",
     "currentEvidence": "apps/web/src/Workspace.test.tsx, apps/api/src/app.test.ts",
-    "status": "NEEDS_TEST",
-    "requiredAction": "Add focused unit/integration tests for Part 2 fixes",
+    "status": "VERIFIED_COMPLETE",
+    "requiredAction": "None",
     "verificationMethod": "npm run test",
     "targetClosure": "Part 2"
   },

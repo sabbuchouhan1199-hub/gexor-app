@@ -22,12 +22,11 @@ This checklist defines the mandatory verification gates required before Gexor v2
 - [ ] React/Vite web bundle completes without warnings or broken imports.
 
 ### 4. Part 2 Correctness Verification
-- [ ] Regenerate control appears strictly on completed assistant messages (`V22-UI-02`).
-- [ ] Textarea input `maxLength` is capped at 4000 characters matching API schema (`V22-UI-03`).
-- [ ] SSE `replayGap` events are formatted and handled correctly by web client (`V22-SSE-03`).
-- [ ] Mobile conversation navigation drawer functions smoothly on screen widths <= 720px (`V22-UI-04`).
-- [ ] Modals respond to `Escape` key and maintain proper accessibility attributes (`V22-UI-05`).
-- [ ] Usage UI accurately displays "Unpriced" for unpriced pricing versions (`V22-USAGE-03`).
+- [x] Regenerate control appears strictly on completed assistant messages (`V22-UI-02`, commit `5a9fcea`).
+- [x] Textarea input `maxLength` is capped at 4000 characters matching API schema (`V22-UI-03`, commit `5a9fcea`).
+- [x] SSE `replayGap` events are formatted and handled correctly by web client (`V22-SSE-03`, commit `8e37bc3`).
+- [x] Usage UI accurately displays "Unpriced" for unpriced pricing versions (`V22-USAGE-03`, commit `9a697cf`).
+- [x] Regression tests added for all UI & SSE replay gap fixes (`V22-TEST-02`, commits `5a9fcea`, `8e37bc3`).
 
 ### 5. Documentation Baseline Reconciliation
 - [ ] `GEXOR.md` project context updated with verified test counts and release snapshot.

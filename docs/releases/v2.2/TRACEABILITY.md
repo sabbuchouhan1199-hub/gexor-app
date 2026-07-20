@@ -17,5 +17,7 @@ This matrix maps core requirement specifications to their corresponding source c
 | `REQ-PRV-001` | Provider Engine | `apps/api/src/providers/` | `apps/api/src/provider-connections.test.ts` | `GEXOR.md` (Section 12) |
 | `REQ-USG-001` | Usage & Accounting | `apps/api/src/app.ts` (lines 680-720) | `apps/api/src/production-runtime.test.ts` | `GEXOR.md` (Section 13) |
 | `REQ-FIL-001` | File Attachments | `apps/api/src/attachments/` | `apps/api/src/app.test.ts` | `GEXOR.md` (Section 15) |
-| `REQ-UX-001` | Workspace UI | `apps/web/src/Workspace.tsx` | `apps/web/src/Workspace.test.tsx` | `README.md` |
+| `REQ-UX-001` | Workspace UI | `apps/web/src/Workspace.tsx` (`5a9fcea`, `9a697cf`) | `apps/web/src/Workspace.test.tsx` | `README.md` |
+| `REQ-API-002` | API Contracts | `packages/contracts/src/index.ts` (`5a9fcea`) | `apps/web/src/Workspace.test.tsx` | `docs/API_RUNTIME.md` |
+| `REQ-SSE-004` | SSE Stream Replay | `apps/api/src/app.ts`, `apps/web/src/api/client.ts` (`8e37bc3`) | `apps/api/src/app.test.ts` | `docs/API_RUNTIME.md` |
 | `REQ-OPS-001` | Operations | `apps/api/src/app.ts` (line 279), `backup.ts` | `apps/api/src/config.test.ts` | `docs/OPERATIONS.md` |
